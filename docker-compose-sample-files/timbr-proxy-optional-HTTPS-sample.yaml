@@ -1,0 +1,15 @@
+services:
+  timbr-proxy:
+    image: timbr.azurecr.io/timbr-proxy:latest
+    container_name: timbr-proxy
+    networks:
+      - timbr-net
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - timbr-db
+    volumes:
+      - <file location in your machine>/nginx-https.conf:/etc/nginx/nginx.conf
+      - <file location in your machine>/domain_cert.pem:/usr/lib/ssl/domain_cert.pem
+      - <file location in your machine>/private_key.pem:/usr/lib/ssl/private_key.pem

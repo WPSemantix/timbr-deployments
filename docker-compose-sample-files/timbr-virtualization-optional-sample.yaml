@@ -1,0 +1,19 @@
+services:
+  timbr-virtualization:
+    image: timbr.azurecr.io/timbr-virtualization-v2:latest
+    container_name: timbr-virtualization
+    environment:
+      - TIMBR_DB_JDBC=jdbc:mysql://timbr-db:3306/timbr_metastore?useSSL=false&amp;allowPublicKeyRetrieval=true
+      - TIMBR_DB_JDBC_DRIVER=com.mysql.jdbc.Driver
+      - TIMBR_DB_USER=db_user
+      - TIMBR_DB_PASSWORD=db_pass
+    restart: always
+    networks:
+      - timbr-net
+    depends_on:
+      - timbr-db
+    volumes:
+      - virtualization-volume:/data/
+
+volumes:
+  virtualization-volume:
