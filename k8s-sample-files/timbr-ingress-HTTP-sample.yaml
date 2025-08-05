@@ -1,0 +1,63 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+  name: timbr-ingress
+  namespace: default
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: <hostname_name>
+      http:
+        paths:
+          - backend:
+              service:
+                name: timbr-platform
+                port:
+                  number: 8088
+            path: /
+            pathType: Prefix
+          - backend:
+              service:
+                name: timbr-server
+                port:
+                  number: 11000
+            path: /timbr-server
+            pathType: Prefix
+          - backend:
+              service:
+                name: timbr-server
+                port:
+                  number: 11000
+            path: /hive2
+            pathType: Prefix
+          - backend:
+              service:
+                name: timbr-server
+                port:
+                  number: 11000
+            path: /cliservice
+            pathType: Prefix
+          - path: /mdx
+            pathType: Prefix
+            backend:
+              service:
+                name: timbr-mdx
+                port:
+                  number: 13000
+          - path: /timbr/openapi
+            pathType: Prefix
+            backend:
+              service:
+                name: timbr-api
+                port:
+                  number: 9000
+          - path: /timbr/api
+            pathType: Prefix
+            backend:
+              service:
+                name: timbr-api
+                port:
+                  number: 9000

@@ -1,0 +1,94 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: timbr-platform
+  namespace: default
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 600
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: timbr-platform
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        app: timbr-platform
+    spec:
+      containers:
+        - name: timbr-platform
+          image: timbr.azurecr.io/timbr-platform-stable:latest
+          ports:
+            - containerPort: 8088
+              protocol: TCP
+          env:
+            - name: DB_CONNECTION
+              value: mysql
+            - name: DB_HOST
+              value: timbr-mysql
+            - name: DB_PORT
+              value: '3306'
+            - name: DB_DATABASE
+              value: timbr_platform
+            - name: DB_USERNAME
+              value: db_user
+            - name: DB_PASSWORD
+              value: db_pass
+            - name: SQLLAB_LIMIT
+              value: '1000'
+            - name: FLASK_ENV
+              value: production
+            - name: THRIFT_HOST
+              value: timbr-server
+            - name: ENFORCE_SSL
+              value: '1'
+          resources:
+            limits:
+              memory: 4Gi
+            requests:
+              memory: 500Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+              scheme: HTTP
+            initialDelaySeconds: 20
+            timeoutSeconds: 28
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 5
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: Always
+      imagePullSecrets:
+        - name: timbr-registry-cred
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 35
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: timbr-platform
+  namespace: default
+spec:
+  type: LoadBalancer
+  sessionAffinity: None
+  internalTrafficPolicy: Cluster
+  ipFamilyPolicy: SingleStack
+  ipFamilies:
+    - IPv4
+  selector:
+    app: timbr-platform
+  ports:
+    - name: timbr-platform
+      protocol: TCP
+      port: 8088
+      targetPort: 8088
