@@ -1,0 +1,11 @@
+services:
+  timbr-api:
+    image: timbr.azurecr.io/timbr-api:latest
+    container_name: timbr-api
+    environment:
+      - THRIFT_HOST=timbr-server
+    ports:
+      - "9000:9000"
+    networks:
+      - timbr-net
+    restart: always

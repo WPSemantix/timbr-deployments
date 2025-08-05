@@ -1,0 +1,12 @@
+services:
+  timbr-proxy:
+    image: timbr.azurecr.io/timbr-proxy:latest
+    container_name: timbr-proxy
+    networks:
+      - timbr-net
+    ports:
+      - "80:80"
+    depends_on:
+      - timbr-db
+    volumes:
+      - <file location in your machine>/nginx-http.conf:/etc/nginx/nginx.conf

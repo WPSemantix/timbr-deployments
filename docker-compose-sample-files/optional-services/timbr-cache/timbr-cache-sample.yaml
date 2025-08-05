@@ -1,0 +1,12 @@
+services:
+  timbr-cache:
+    image: timbr.azurecr.io/timbr-cache:latest
+    container_name: timbr-cache
+    networks:
+      - timbr-net
+    volumes:
+      - cache-volume:/var/lib/clickhouse/
+    restart: always
+
+volumes:
+  cache-volume:

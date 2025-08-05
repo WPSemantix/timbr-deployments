@@ -1,0 +1,69 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: timbr-ga
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: timbr-ga
+  template:
+    metadata:
+      labels:
+        app: timbr-ga
+    spec:
+      containers:
+        - name: timbr
+          image: timbr.azurecr.io/timbr-ga:latest
+          ports:
+            - containerPort: 12000
+              protocol: TCP
+          env:
+            - name: TIMBR_DB_JDBC
+              value: jdbc:mysql://timbr-mysql:3306/
+            - name: TIMBR_DB_JDBC_DRIVER
+              value: com.mysql.jdbc.Driver
+            - name: TIMBR_DB_JDBC_PARAMS
+              value: useSSL=false
+            - name: TIMBR_DB_USER
+              value: db_user
+            - name: TIMBR_DB_PASSWORD
+              value: db_pass
+            - name: PYTHONUNBUFFERED
+              value: '1'
+            - name: TIMBR_DB_NAME
+              value: timbr_server
+            - name: THRIFT_HOST
+              value: timbr-server
+          resources:
+            limits:
+              memory: 4Gi
+            requests:
+              memory: 50Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: Always
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      imagePullSecrets:
+        - name: timbr-registry-cred
+      schedulerName: default-scheduler
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: timbr-ga
+  namespace: default
+spec:
+  ports:
+    - name: timbr-ga
+      protocol: TCP
+      port: 12000
+      targetPort: 12000
+  selector:
+    app: timbr-ga
+  type: ClusterIP
+  sessionAffinity: None

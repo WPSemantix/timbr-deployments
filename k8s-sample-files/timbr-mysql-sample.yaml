@@ -1,0 +1,82 @@
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: timbr-mysql
+  namespace: default
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: timbr-mysql
+  serviceName: timbr-mysql
+  template:
+    metadata:
+      labels:
+        app: timbr-mysql
+    spec:
+      containers:
+        - name: timbr-mysql
+          image: timbr.azurecr.io/timbr-mysql-8:latest
+          ports:
+            - containerPort: 3306
+              protocol: TCP
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: db_pass
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              memory: 500Mi
+          volumeMounts:
+            - name: mysqldata
+              mountPath: /var/lib/mysql/
+              subPath: mysql
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: Always
+      imagePullSecrets:
+        - name: timbr-registry-cred
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 10
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  volumeClaimTemplates:
+    - kind: PersistentVolumeClaim
+      apiVersion: v1
+      metadata:
+        name: mysqldata
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 30Gi
+        volumeMode: Filesystem
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: timbr-mysql
+  namespace: default
+spec:
+  ports:
+    - name: timbr-mysql
+      protocol: TCP
+      port: 3306
+      targetPort: 3306
+  selector:
+    app: timbr-mysql
+  type: ClusterIP
+  sessionAffinity: None
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  internalTrafficPolicy: Cluster

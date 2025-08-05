@@ -1,0 +1,15 @@
+services:
+  timbr-scheduler:
+    image: timbr.azurecr.io/timbr-scheduler:latest
+    container_name: timbr-scheduler
+    environment:
+      - TIMBR_DB_HOST=timbr-db
+      - TIMBR_DB_SSL="false"
+      - TIMBR_DB_USER=db_user
+      - TIMBR_DB_PASSWORD=db_pass
+      - PYTHONUNBUFFERED=1
+      - TIMBR_DB_NAME=timbr_server
+      - THRIFT_HOST=timbr-server
+    restart: always
+    networks:
+      - timbr-net

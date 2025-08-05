@@ -1,0 +1,16 @@
+services:
+  timbr-mdx:
+    image: timbr.azurecr.io/timbr-mdx:latest
+    container_name: timbr-mdx
+    environment:
+      - TIMBR_DB_JDBC=jdbc:mysql://timbr-db:3306
+      - TIMBR_DB_JDBC_DRIVER=com.mysql.jdbc.Driver
+      - TIMBR_DB_JDBC_PARAMS=useSSL=false&amp;allowPublicKeyRetrieval=true
+      - TIMBR_DB_USER=db_user
+      - TIMBR_DB_PASSWORD=db_pass
+      - TIMBR_PUBLIC_HOSTNAME=timbr-server
+    ports:
+      - "13000:13000"
+    networks:
+      - timbr-net
+    restart: always

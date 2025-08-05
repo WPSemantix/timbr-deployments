@@ -1,0 +1,88 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: timbr-server
+  namespace: default
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: timbr-server
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        app: timbr-server
+    spec:
+      containers:
+        - name: timbr
+          image: timbr.azurecr.io/timbr-server-stable:latest
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 11000
+              protocol: TCP
+          env:
+            - name: TIMBR_DB_JDBC
+              value: jdbc:mysql://timbr-mysql:3306
+            - name: TIMBR_DB_JDBC_DRIVER
+              value: com.mysql.jdbc.Driver
+            - name: TIMBR_DB_JDBC_PARAMS
+              value: useSSL=false
+            - name: TIMBR_DB_USER
+              value: db_user
+            - name: TIMBR_DB_PASSWORD
+              value: db_pass
+            - name: TIMBR_CONNECTION_WORKER_THREADS
+              value: '50'
+            - name: TIMBR_OPERATION_WORKER_THREADS
+              value: '25'
+          resources:
+            limits:
+              memory: 4Gi
+            requests:
+              memory: 500Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 11000
+              scheme: HTTP
+            initialDelaySeconds: 20
+            timeoutSeconds: 28
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+      imagePullSecrets:
+        - name: timbr-registry-cred
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: timbr-server
+  namespace: default
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  internalTrafficPolicy: Cluster
+  selector:
+    app: timbr-server
+  ports:
+    - name: timbr-server
+      protocol: TCP
+      port: 11000
+      targetPort: 11000
