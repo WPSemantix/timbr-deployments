@@ -1,0 +1,79 @@
+{{- if .Values.components.virtualization.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.components.virtualization.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: virtualization
+spec:
+  type: {{ .Values.components.virtualization.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.components.virtualization.service.port }}
+      targetPort: 10000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: virtualization
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.components.virtualization.name }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: virtualization
+spec:
+  replicas: {{ .Values.components.virtualization.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: virtualization
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+{{ include "timbr.labels" . | indent 8 }}
+        app.kubernetes.io/component: virtualization
+    spec:
+{{ include "timbr.imagePullSecrets" . | indent 6 }}
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: timbr-virtualization
+          image: {{ .Values.components.virtualization.image | quote }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 10000
+              name: http
+          env:
+            - name: TIMBR_DB_JDBC
+              value: {{ printf "jdbc:mysql://%s:%v/timbr_metastore?%s" .Values.db.host .Values.db.port .Values.components.virtualization.env.TIMBR_DB_JDBC_PARAMS | quote }}
+            - name: TIMBR_DB_USER
+              value: {{ .Values.db.user | quote }}
+            - name: TIMBR_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" . }}
+                  key: {{ .Values.db.rootPasswordSecretKey | quote }}
+            {{- range $k, $v := .Values.components.virtualization.env }}
+            {{- if and (ne $k "extra") (ne $v nil) }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.components.virtualization.env.extra }}
+            {{- range $k, $v := . }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+          volumeMounts:
+            - name: timbr-data-volume
+              mountPath: /data/
+      volumes:
+        - name: timbr-data-volume
+          persistentVolumeClaim:
+            claimName: {{ default "timbr-virtualization-data" .Values.components.virtualization.persistence.existingClaim | quote }}
+{{- end }}

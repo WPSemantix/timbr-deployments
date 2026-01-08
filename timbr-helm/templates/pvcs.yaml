@@ -1,0 +1,39 @@
+{{- if and .Values.components.cache.enabled .Values.components.cache.persistence.enabled (not .Values.components.cache.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.components.cache.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.components.cache.persistence.storageClassName }}
+  storageClassName: {{ .Values.components.cache.persistence.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.components.cache.persistence.size | quote }}
+---
+{{- end }}
+
+{{- if and .Values.components.virtualization.enabled .Values.components.virtualization.persistence.enabled (not .Values.components.virtualization.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: timbr-virtualization-data
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: virtualization
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.components.virtualization.persistence.storageClassName }}
+  storageClassName: {{ .Values.components.virtualization.persistence.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.components.virtualization.persistence.size | quote }}
+{{- end }}

@@ -1,0 +1,55 @@
+{{- if .Values.components.cache.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.components.cache.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  type: {{ .Values.components.cache.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.components.cache.service.port }}
+      targetPort: 8123
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.components.cache.name }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  replicas: {{ .Values.components.cache.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: cache
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+{{ include "timbr.labels" . | indent 8 }}
+        app.kubernetes.io/component: cache
+    spec:
+{{ include "timbr.imagePullSecrets" . | indent 6 }}
+      containers:
+        - name: timbr-cache
+          image: {{ .Values.components.cache.image | quote }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8123
+              name: http
+          volumeMounts:
+            - name: timbr-cache-volume
+              mountPath: /var/lib/clickhouse/
+      volumes:
+        - name: timbr-cache-volume
+          persistentVolumeClaim:
+            claimName: {{ default .Values.components.cache.name .Values.components.cache.persistence.existingClaim | quote }}
+{{- end }}

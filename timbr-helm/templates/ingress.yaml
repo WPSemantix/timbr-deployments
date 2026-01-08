@@ -1,0 +1,92 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: timbr-ingress
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme | quote }}
+    alb.ingress.kubernetes.io/target-type: {{ .Values.ingress.targetType | quote }}
+
+{{- if .Values.ingress.tls.enabled }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+{{- else }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+{{- end }}
+
+{{- if and .Values.ingress.tls.enabled (eq .Values.ingress.tls.source "acm") }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.tls.certificateArn | quote }}
+{{- end }}
+
+{{- with .Values.ingress.annotations }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  rules:
+    - {{- if .Values.ingress.host }}
+      host: {{ .Values.ingress.host | quote }}
+      {{- end }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.platform.name | quote }}
+                port:
+                  number: {{ .Values.components.platform.service.port }}
+          - path: /timbr-server
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.server.name | quote }}
+                port:
+                  number: {{ .Values.components.server.service.port }}
+          - path: /hive2
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.server.name | quote }}
+                port:
+                  number: {{ .Values.components.server.service.port }}
+          - path: /cliservice
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.server.name | quote }}
+                port:
+                  number: {{ .Values.components.server.service.port }}
+          - path: /timbr/openapi
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.api.name | quote }}
+                port:
+                  number: {{ .Values.components.api.service.port }}
+          - path: /timbr/api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.api.name | quote }}
+                port:
+                  number: {{ .Values.components.api.service.port }}
+          - path: /mdx
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.mdx.name | quote }}
+                port:
+                  number: {{ .Values.components.mdx.service.port }}
+
+{{- if and (ne .Values.ingress.className "alb") (eq .Values.ingress.tls.source "secret") }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+{{- end }}
+{{- end }}

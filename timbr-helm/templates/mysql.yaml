@@ -1,0 +1,78 @@
+{{- if .Values.mysql.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.mysql.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+spec:
+  type: {{ .Values.mysql.service.type }}
+  ports:
+    - port: {{ .Values.mysql.service.port }}
+      targetPort: 3306
+      protocol: TCP
+      name: mysql
+  selector:
+    app.kubernetes.io/component: mysql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.mysql.name }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: mysql
+spec:
+  serviceName: {{ .Values.mysql.name }}
+  replicas: {{ .Values.mysql.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: mysql
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+{{ include "timbr.labels" . | indent 8 }}
+        app.kubernetes.io/component: mysql
+    spec:
+{{ include "timbr.imagePullSecrets" . | indent 6 }}
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: timbr-mysql
+          image: {{ .Values.mysql.image | quote }}
+          imagePullPolicy: Always
+          ports:
+            - name: mysql
+              containerPort: 3306
+              protocol: TCP
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" . }}
+                  key: {{ .Values.db.rootPasswordSecretKey | quote }}
+            - name: MYSQL_DATABASE
+              value: {{ .Values.mysql.env.MYSQL_DATABASE | quote }}
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              memory: 500Mi
+          volumeMounts:
+            - mountPath: /var/lib/mysql/
+              name: mysqldata
+              subPath: mysql
+  volumeClaimTemplates:
+    - metadata:
+        name: mysqldata
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if .Values.mysql.persistence.storageClassName }}
+        storageClassName: {{ .Values.mysql.persistence.storageClassName | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.mysql.persistence.size | quote }}
+{{- end }}

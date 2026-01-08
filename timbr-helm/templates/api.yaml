@@ -1,0 +1,89 @@
+{{- if .Values.components.api.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.components.api.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  type: {{ .Values.components.api.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.components.api.service.port }}
+      targetPort: 9000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: api
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.components.api.name }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.components.api.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+{{ include "timbr.labels" . | indent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+{{ include "timbr.imagePullSecrets" . | indent 6 }}
+      containers:
+        - name: timbr-api
+          image: {{ .Values.components.api.image | quote }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9000
+              name: http
+          env:
+            - name: THRIFT_HOST
+              value: {{ .Values.components.server.name | quote }}
+            {{- range $k, $v := .Values.components.api.env }}
+            {{- if and (ne $k "extra") (ne $v nil) }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.components.api.env.extra }}
+            {{- range $k, $v := . }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+
+            {{- with .Values.components.api.llm }}
+            {{- if .TIMBR_LLM_TYPE }}
+            - name: TIMBR_LLM_TYPE
+              value: {{ .TIMBR_LLM_TYPE | quote }}
+            {{- end }}
+            {{- if .TIMBR_LLM_MODEL }}
+            - name: TIMBR_LLM_MODEL
+              value: {{ .TIMBR_LLM_MODEL | quote }}
+            {{- end }}
+            {{- if .TIMBR_LLM_ENDPOINT }}
+            - name: TIMBR_LLM_ENDPOINT
+              value: {{ .TIMBR_LLM_ENDPOINT | quote }}
+            {{- end }}
+            {{- if .TIMBR_LLM_ADDITIONAL_PARAMS }}
+            - name: TIMBR_LLM_ADDITIONAL_PARAMS
+              value: {{ .TIMBR_LLM_ADDITIONAL_PARAMS | quote }}
+            {{- end }}
+            {{- if .TIMBR_LLM_APIKEY_SECRET_KEY }}
+            - name: TIMBR_LLM_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" $ }}
+                  key: {{ .TIMBR_LLM_APIKEY_SECRET_KEY | quote }}
+            {{- end }}
+            {{- end }}
+{{- end }}

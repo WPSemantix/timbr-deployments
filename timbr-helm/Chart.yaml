@@ -1,0 +1,6 @@
+apiVersion: v2
+name: timbr
+description: Timbr platform packaged as a Helm chart for AWS
+type: application
+version: 3.1.0
+appVersion: 1.0.0

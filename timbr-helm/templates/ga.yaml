@@ -1,0 +1,74 @@
+{{- if .Values.components.ga.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.components.ga.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: ga
+spec:
+  type: {{ .Values.components.ga.service.type }}
+  ports:
+    - name: ga
+      port: {{ .Values.components.ga.service.port }}
+      targetPort: 12000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: ga
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.components.ga.name }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: ga
+spec:
+  replicas: {{ .Values.components.ga.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: ga
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+{{ include "timbr.labels" . | indent 8 }}
+        app.kubernetes.io/component: ga
+    spec:
+{{ include "timbr.imagePullSecrets" . | indent 6 }}
+      containers:
+        - name: timbr
+          image: {{ .Values.components.ga.image | quote }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 12000
+              name: ga
+          env:
+            - name: TIMBR_DB_JDBC
+              value: {{ printf "jdbc:mysql://%s:%v/" .Values.db.host .Values.db.port | quote }}
+            - name: TIMBR_DB_USER
+              value: {{ .Values.db.user | quote }}
+            - name: TIMBR_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" . }}
+                  key: {{ .Values.db.rootPasswordSecretKey | quote }}
+            - name: TIMBR_DB_NAME
+              value: {{ .Values.db.serverDb | quote }}
+            - name: THRIFT_HOST
+              value: {{ .Values.components.server.name | quote }}
+            {{- range $k, $v := .Values.components.ga.env }}
+            {{- if and (ne $k "extra") (ne $v nil) }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.components.ga.env.extra }}
+            {{- range $k, $v := . }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+{{- end }}
