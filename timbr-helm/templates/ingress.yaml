@@ -7,26 +7,9 @@ metadata:
   labels:
 {{ include "timbr.labels" . | indent 4 }}
   annotations:
-    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme | quote }}
-    alb.ingress.kubernetes.io/target-type: {{ .Values.ingress.targetType | quote }}
-
-{{- if .Values.ingress.tls.enabled }}
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: "443"
-{{- else }}
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
-{{- end }}
-
-{{- if and .Values.ingress.tls.enabled (eq .Values.ingress.tls.source "acm") }}
-    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.tls.certificateArn | quote }}
-{{- end }}
-
-{{- with .Values.ingress.annotations }}
-{{ toYaml . | indent 4 }}
-{{- end }}
-
+{{ include "timbr.ingressAnnotations" . | indent 4 }}
 spec:
-  ingressClassName: {{ .Values.ingress.className | quote }}
+  ingressClassName: {{ include "timbr.ingressClass" . | quote }}
   rules:
     - {{- if .Values.ingress.host }}
       host: {{ .Values.ingress.host | quote }}
@@ -83,10 +66,22 @@ spec:
                 port:
                   number: {{ .Values.components.mdx.service.port }}
 
-{{- if and (ne .Values.ingress.className "alb") (eq .Values.ingress.tls.source "secret") }}
+{{- if and .Values.ingress.tls.enabled (or (eq .Values.ingress.tls.source "secret") (eq .Values.cloudProvider.type "generic")) .Values.ingress.tls.secretName }}
   tls:
     - hosts:
         - {{ .Values.ingress.host | quote }}
       secretName: {{ .Values.ingress.tls.secretName | quote }}
+{{- end }}
+
+{{- if and (eq .Values.cloudProvider.type "gcp") .Values.ingress.tls.enabled }}
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: timbr-managed-cert
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+spec:
+  domains:
+    - {{ .Values.ingress.host | quote }}
 {{- end }}
 {{- end }}

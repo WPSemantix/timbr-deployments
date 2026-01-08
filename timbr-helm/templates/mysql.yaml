@@ -69,8 +69,9 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
-        {{- if .Values.mysql.persistence.storageClassName }}
-        storageClassName: {{ .Values.mysql.persistence.storageClassName | quote }}
+        {{- $storageClass := include "timbr.storageClass" (dict "Values" .Values "storageClassName" .Values.mysql.persistence.storageClassName) }}
+        {{- if $storageClass }}
+        storageClassName: {{ $storageClass | quote }}
         {{- end }}
         resources:
           requests:

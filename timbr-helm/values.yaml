@@ -1,6 +1,11 @@
 namespaceOverride: ""
 createNamespace: false
 
+# Cloud provider configuration
+# Supported values: aws, azure, gcp, generic
+cloudProvider:
+  type: aws
+
 global:
   imagePullSecrets:
     - timbr-registry-cred
@@ -26,7 +31,7 @@ mysql:
   persistence:
     enabled: true
     size: 30Gi
-    storageClassName: "gp2"
+    storageClassName: ""  # Auto-detected based on cloudProvider: gp3 (AWS), managed-csi (Azure), standard-rwo (GCP)
   env:
     MYSQL_ROOT_PASSWORD_SECRET_KEY: mysqlRootPassword
     MYSQL_DATABASE: timbr_platform
@@ -41,14 +46,38 @@ db:
 
 ingress:
   enabled: true
-  className: alb
+  className: ""  # Auto-detected based on cloudProvider: alb (AWS), azure-application-gateway (Azure), gce (GCP), nginx (generic)
   host: ""
-  scheme: internet-facing     # or internal
-  targetType: ip              # ip or instance
+  
+  # AWS-specific configuration (when cloudProvider.type = aws)
+  aws:
+    scheme: internet-facing     # internet-facing | internal
+    targetType: ip              # ip | instance
+  
+  # Azure-specific configuration (when cloudProvider.type = azure)
+  azure:
+    backendProtocol: http       # http | https
+    sslRedirect: false
+    usePrivateIp: false
+  
+  # GCP-specific configuration (when cloudProvider.type = gcp)
+  gcp:
+    staticIpName: ""            # Optional: name of pre-allocated static IP
+    globalStaticIp: false       # true for global LB, false for regional
+  
+  # TLS/SSL configuration
   tls:
-    enabled: false            # default: HTTP only
-    source: acm               # acm | secret (secret ignored for ALB)
-    certificateArn: ""
+    enabled: false
+    source: ""                  # acm (AWS) | keyvault (Azure) | secret (generic)
+    certificateArn: ""          # For AWS ACM
+    secretName: ""              # For Kubernetes secret-based TLS
+    azureKeyVault:
+      secretId: ""              # For Azure Key Vault integration
+  
+  # Additional annotations (merged with cloud-specific ones)
+  annotations: {}
+  
+  # External DNS configuration (optional)
   externalDNS:
     enabled: false
     hostname: ""
@@ -177,7 +206,7 @@ components:
       enabled: true
       existingClaim: ""
       size: 50Gi
-      storageClassName: "gp2"
+      storageClassName: ""  # Auto-detected based on cloudProvider
 
   virtualization:
     enabled: true
@@ -191,7 +220,7 @@ components:
       enabled: true
       existingClaim: ""
       size: 50Gi
-      storageClassName: "gp2"
+      storageClassName: ""  # Auto-detected based on cloudProvider
     env:
       TIMBR_DB_JDBC_DRIVER: com.mysql.jdbc.Driver
       TIMBR_DB_JDBC_PARAMS: useSSL=false

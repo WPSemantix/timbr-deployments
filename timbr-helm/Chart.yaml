@@ -1,6 +1,7 @@
 apiVersion: v2
 name: timbr
-description: Timbr platform packaged as a Helm chart for AWS
+description: Timbr platform packaged as a Helm chart for Kubernetes (EKS, AKS, GKE)
 type: application
-version: 3.1.0
+version: 4.0.0
 appVersion: 1.0.0
+# icon: 

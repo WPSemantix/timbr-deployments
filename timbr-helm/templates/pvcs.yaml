@@ -10,8 +10,9 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  {{- if .Values.components.cache.persistence.storageClassName }}
-  storageClassName: {{ .Values.components.cache.persistence.storageClassName | quote }}
+  {{- $storageClass := include "timbr.storageClass" (dict "Values" .Values "storageClassName" .Values.components.cache.persistence.storageClassName) }}
+  {{- if $storageClass }}
+  storageClassName: {{ $storageClass | quote }}
   {{- end }}
   resources:
     requests:
@@ -30,8 +31,9 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  {{- if .Values.components.virtualization.persistence.storageClassName }}
-  storageClassName: {{ .Values.components.virtualization.persistence.storageClassName | quote }}
+  {{- $storageClass := include "timbr.storageClass" (dict "Values" .Values "storageClassName" .Values.components.virtualization.persistence.storageClassName) }}
+  {{- if $storageClass }}
+  storageClassName: {{ $storageClass | quote }}
   {{- end }}
   resources:
     requests:
