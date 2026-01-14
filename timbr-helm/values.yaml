@@ -1,6 +1,27 @@
 namespaceOverride: ""
 createNamespace: false
 
+# NGINX Ingress Controller (for generic/non-cloud-native deployments)
+# Set to false if using cloud provider's ingress (ALB, App Gateway, GCE)
+nginx-ingress:
+  enabled: true  # Set to true for generic Kubernetes clusters
+  namespaceOverride: ""  # Will use parent chart's namespace
+  controller:
+    name: controller
+    ingressClassResource:
+      name: nginx
+      enabled: true
+      default: false
+    service:
+      type: LoadBalancer  # Use NodePort for local clusters without LB support
+      namespaceOverride: ""  # Ensure service is in same namespace
+      externalTrafficPolicy: Local
+      annotations:
+        service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
+    # Deploy in the same namespace as Timbr
+    scope:
+      enabled: true
+
 # Cloud provider configuration
 # Supported values: aws, azure, gcp, generic
 cloudProvider:

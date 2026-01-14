@@ -10,7 +10,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  {{- $storageClass := include "timbr.storageClass" (dict "Values" .Values "storageClassName" .Values.components.cache.persistence.storageClassName) }}
+  {{- $storageClass := include "timbr.storageClass" (dict "root" . "storageClassName" .Values.components.cache.persistence.storageClassName) }}
   {{- if $storageClass }}
   storageClassName: {{ $storageClass | quote }}
   {{- end }}
@@ -25,13 +25,14 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: timbr-virtualization-data
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
   labels:
 {{ include "timbr.labels" . | indent 4 }}
     app.kubernetes.io/component: virtualization
 spec:
   accessModes:
     - ReadWriteOnce
-  {{- $storageClass := include "timbr.storageClass" (dict "Values" .Values "storageClassName" .Values.components.virtualization.persistence.storageClassName) }}
+  {{- $storageClass := include "timbr.storageClass" (dict "root" . "storageClassName" .Values.components.virtualization.persistence.storageClassName) }}
   {{- if $storageClass }}
   storageClassName: {{ $storageClass | quote }}
   {{- end }}

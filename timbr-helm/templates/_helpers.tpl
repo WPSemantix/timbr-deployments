@@ -44,17 +44,18 @@ nginx
 
 {{/*
 Get the storage class name based on cloud provider
+Usage: include "timbr.storageClass" (dict "root" . "storageClassName" .Values.mysql.persistence.storageClassName)
 */}}
 {{- define "timbr.storageClass" -}}
-{{- $storageClass := . -}}
+{{- $storageClass := .storageClassName -}}
 {{- if $storageClass -}}
 {{ $storageClass }}
 {{- else -}}
-{{- if eq $.Values.cloudProvider.type "aws" -}}
+{{- if eq .root.Values.cloudProvider.type "aws" -}}
 gp3
-{{- else if eq $.Values.cloudProvider.type "azure" -}}
+{{- else if eq .root.Values.cloudProvider.type "azure" -}}
 managed-csi
-{{- else if eq $.Values.cloudProvider.type "gcp" -}}
+{{- else if eq .root.Values.cloudProvider.type "gcp" -}}
 standard-rwo
 {{- else -}}
 {{- /* Use cluster default if generic or not specified */ -}}
@@ -106,7 +107,6 @@ networking.gke.io/managed-certificates: "timbr-managed-cert"
 {{- if .Values.ingress.tls.enabled }}
 nginx.ingress.kubernetes.io/ssl-redirect: "true"
 {{- end }}
-nginx.ingress.kubernetes.io/rewrite-target: /
 {{- end }}
 {{- /* Merge user-provided annotations */ -}}
 {{- with .Values.ingress.annotations }}

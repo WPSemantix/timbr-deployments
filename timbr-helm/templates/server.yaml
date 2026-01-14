@@ -22,6 +22,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Values.components.server.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
   labels:
 {{ include "timbr.labels" . | indent 4 }}
     app.kubernetes.io/component: server

@@ -20,6 +20,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ .Values.mysql.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
   labels:
 {{ include "timbr.labels" . | indent 4 }}
     app.kubernetes.io/component: mysql
@@ -69,7 +70,7 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
-        {{- $storageClass := include "timbr.storageClass" (dict "Values" .Values "storageClassName" .Values.mysql.persistence.storageClassName) }}
+        {{- $storageClass := include "timbr.storageClass" (dict "root" . "storageClassName" .Values.mysql.persistence.storageClassName) }}
         {{- if $storageClass }}
         storageClassName: {{ $storageClass | quote }}
         {{- end }}
