@@ -1,0 +1,12 @@
+apiVersion: v2
+name: timbr
+description: Timbr platform packaged as a Helm chart for Kubernetes (EKS, AKS, GKE)
+type: application
+version: 2.0.0
+appVersion: 1.0.0
+
+dependencies:
+  - name: ingress-nginx
+    version: "4.11.3"
+    repository: https://kubernetes.github.io/ingress-nginx
+    condition: nginx-ingress.enabled 

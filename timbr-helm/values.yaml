@@ -1,0 +1,248 @@
+namespaceOverride: ""
+createNamespace: false
+
+# NGINX Ingress Controller (for generic/non-cloud-native deployments)
+# Set to false if using cloud provider's ingress (ALB, App Gateway, GCE)
+nginx-ingress:
+  enabled: true  # Set to true for generic Kubernetes clusters
+  namespaceOverride: ""  # Will use parent chart's namespace
+  controller:
+    name: controller
+    ingressClassResource:
+      name: nginx
+      enabled: true
+      default: false
+    service:
+      type: LoadBalancer  # Use NodePort for local clusters without LB support
+      namespaceOverride: ""  # Ensure service is in same namespace
+      externalTrafficPolicy: Local
+      annotations:
+        service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
+    # Deploy in the same namespace as Timbr
+    scope:
+      enabled: true
+
+# Cloud provider configuration
+# Supported values: aws, azure, gcp, generic
+cloudProvider:
+  type: aws
+
+global:
+  imagePullSecrets:
+    - timbr-registry-cred
+  labels: {}
+
+secrets:
+  create: true
+  existingSecretName: ""
+  data:
+    mysqlRootPassword: "welcome"
+    llmApiKey: ""            # TIMBR_LLM_APIKEY
+    oauthSecret: ""          # OAUTH_SECRET
+    azureClientSecret: ""    # AZURE_CLIENT_SECRET
+
+mysql:
+  enabled: true
+  name: timbr-mysql
+  image: timbr.azurecr.io/timbr-mysql-8:latest
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 3306
+  persistence:
+    enabled: true
+    size: 30Gi
+    storageClassName: ""  # Auto-detected based on cloudProvider: gp3 (AWS), managed-csi (Azure), standard-rwo (GCP)
+  env:
+    MYSQL_ROOT_PASSWORD_SECRET_KEY: mysqlRootPassword
+    MYSQL_DATABASE: timbr_platform
+
+db:
+  host: timbr-mysql
+  port: 3306
+  user: root
+  rootPasswordSecretKey: mysqlRootPassword
+  platformDb: timbr_platform
+  serverDb: timbr_server
+
+ingress:
+  enabled: true
+  className: ""  # Auto-detected based on cloudProvider: alb (AWS), azure-application-gateway (Azure), gce (GCP), nginx (generic)
+  host: ""
+  
+  # AWS-specific configuration (when cloudProvider.type = aws)
+  aws:
+    scheme: internet-facing     # internet-facing | internal
+    targetType: ip              # ip | instance
+  
+  # Azure-specific configuration (when cloudProvider.type = azure)
+  azure:
+    backendProtocol: http       # http | https
+    sslRedirect: false
+    usePrivateIp: false
+  
+  # GCP-specific configuration (when cloudProvider.type = gcp)
+  gcp:
+    staticIpName: ""            # Optional: name of pre-allocated static IP
+    globalStaticIp: false       # true for global LB, false for regional
+  
+  # TLS/SSL configuration
+  tls:
+    enabled: false
+    source: ""                  # acm (AWS) | keyvault (Azure) | secret (generic)
+    certificateArn: ""          # For AWS ACM
+    secretName: ""              # For Kubernetes secret-based TLS
+    azureKeyVault:
+      secretId: ""              # For Azure Key Vault integration
+  
+  # Additional annotations (merged with cloud-specific ones)
+  annotations: {}
+  
+  # External DNS configuration (optional)
+  externalDNS:
+    enabled: false
+    hostname: ""
+
+imagePullSecrets:
+  - name: timbr-registry-cred
+
+components:
+  platform:
+    enabled: true
+    name: timbr-platform
+    image: timbr.azurecr.io/timbr-platform-stable:latest
+    replicas: 1
+    service:
+      type: ClusterIP
+      port: 8088
+    env:
+      SQLLAB_LIMIT: "1000"
+      FLASK_ENV: "production"
+      FLASK_DEBUG: "1"
+      ENABLE_WEBSOCKETS: "true"
+      extra: {}
+    llm:
+      TIMBR_LLM_TYPE: ""
+      TIMBR_LLM_MODEL: ""
+      TIMBR_LLM_APIKEY_SECRET_KEY: llmApiKey
+      TIMBR_LLM_ENDPOINT: ""
+      TIMBR_LLM_ADDITIONAL_PARAMS: ""
+    oauth:
+      OAUTH_CLIENT_ID: ""
+      OAUTH_BASE_URL: ""
+      OAUTH_SECRET_SECRET_KEY: oauthSecret
+      OAUTH_PROVIDER: ""          # google|azure|okta|""
+      OAUTH_USE_PKCE: "true"
+      OAUTH_SCOPES: ""
+      OAUTH_ROLE_MAPPING_ENABLED: "false"
+      OAUTH_ROLE_MAPPING: "{}"
+      OAUTH_ROLE_MAPPING_DEFAULT: ""
+      OAUTH_ROLE_MAPPING_STRATEGY: "highest"
+      OAUTH_ROLE_PRIORITY: "admin,editor,analyst,viewer"
+      AUTH_USER_REGISTRATION: ""
+      AUTH_USER_REGISTRATION_ROLE: ""
+      AZURE_TENANT_ID: ""
+      AZURE_CLIENT_ID: ""
+      AZURE_CLIENT_SECRET_SECRET_KEY: azureClientSecret
+
+  api:
+    enabled: true
+    name: timbr-api
+    image: timbr.azurecr.io/timbr-api:latest
+    replicas: 1
+    service:
+      type: ClusterIP
+      port: 9000
+    env:
+      ENABLE_USER_TOKEN: "true"
+      extra: {}
+    llm:
+      TIMBR_LLM_TYPE: ""
+      TIMBR_LLM_MODEL: ""
+      TIMBR_LLM_APIKEY_SECRET_KEY: llmApiKey
+      TIMBR_LLM_ENDPOINT: ""
+      TIMBR_LLM_ADDITIONAL_PARAMS: ""
+
+  server:
+    enabled: true
+    name: timbr-server
+    image: timbr.azurecr.io/timbr-server-stable:latest
+    replicas: 1
+    service:
+      type: ClusterIP
+      port: 11000
+    env:
+      TIMBR_DB_JDBC_DRIVER: com.mysql.jdbc.Driver
+      TIMBR_DB_JDBC_PARAMS: useSSL=false&allowPublicKeyRetrieval=true
+      TIMBR_CONNECTION_WORKER_THREADS: "100"
+      TIMBR_OPERATION_WORKER_THREADS: "50"
+      extra: {}
+
+  mdx:
+    enabled: true
+    name: timbr-mdx
+    image: timbr.azurecr.io/timbr-mdx:latest
+    replicas: 1
+    service:
+      type: ClusterIP
+      port: 12000
+    env:
+      TIMBR_DB_JDBC_DRIVER: com.mysql.jdbc.Driver
+      TIMBR_DB_JDBC_PARAMS: useSSL=false&allowPublicKeyRetrieval=true
+      TIMBR_PUBLIC_HOSTNAME: timbr-server
+      extra: {}
+
+  ga:
+    enabled: true
+    name: timbr-ga
+    image: timbr.azurecr.io/timbr-ga:latest
+    replicas: 1
+    service:
+      type: ClusterIP
+      port: 12000
+    env:
+      TIMBR_DB_JDBC_DRIVER: com.mysql.jdbc.Driver
+      TIMBR_DB_JDBC_PARAMS: useSSL=false&allowPublicKeyRetrieval=true
+      PYTHONUNBUFFERED: "1"
+      extra: {}
+
+  scheduler:
+    enabled: true
+    name: timbr-scheduler
+    image: timbr.azurecr.io/timbr-scheduler:latest
+    replicas: 1
+    env:
+      PYTHONUNBUFFERED: "1"
+      extra: {}
+
+  cache:
+    enabled: true
+    name: timbr-cache
+    image: timbr.azurecr.io/timbr-cache:latest
+    replicas: 1
+    service:
+      type: ClusterIP
+      port: 8123
+    persistence:
+      enabled: true
+      existingClaim: ""
+      size: 50Gi
+      storageClassName: ""  # Auto-detected based on cloudProvider
+
+  virtualization:
+    enabled: true
+    name: timbr-virtualization
+    image: timbr.azurecr.io/timbr-virtualization-v2:latest
+    replicas: 1
+    service:
+      type: ClusterIP
+      port: 10000
+    persistence:
+      enabled: true
+      existingClaim: ""
+      size: 50Gi
+      storageClassName: ""  # Auto-detected based on cloudProvider
+    env:
+      TIMBR_DB_JDBC_DRIVER: com.mysql.jdbc.Driver
+      TIMBR_DB_JDBC_PARAMS: useSSL=false
+      extra: {}

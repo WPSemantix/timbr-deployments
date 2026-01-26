@@ -1,0 +1,87 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: timbr-ingress
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+  annotations:
+{{ include "timbr.ingressAnnotations" . | indent 4 }}
+spec:
+  ingressClassName: {{ include "timbr.ingressClass" . | quote }}
+  rules:
+    - {{- if .Values.ingress.host }}
+      host: {{ .Values.ingress.host | quote }}
+      {{- end }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.platform.name | quote }}
+                port:
+                  number: {{ .Values.components.platform.service.port }}
+          - path: /timbr-server
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.server.name | quote }}
+                port:
+                  number: {{ .Values.components.server.service.port }}
+          - path: /hive2
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.server.name | quote }}
+                port:
+                  number: {{ .Values.components.server.service.port }}
+          - path: /cliservice
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.server.name | quote }}
+                port:
+                  number: {{ .Values.components.server.service.port }}
+          - path: /timbr/openapi
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.api.name | quote }}
+                port:
+                  number: {{ .Values.components.api.service.port }}
+          - path: /timbr/api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.api.name | quote }}
+                port:
+                  number: {{ .Values.components.api.service.port }}
+          - path: /mdx
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.mdx.name | quote }}
+                port:
+                  number: {{ .Values.components.mdx.service.port }}
+
+{{- if and .Values.ingress.tls.enabled (or (eq .Values.ingress.tls.source "secret") (eq .Values.cloudProvider.type "generic")) .Values.ingress.tls.secretName }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+{{- end }}
+
+{{- if and (eq .Values.cloudProvider.type "gcp") .Values.ingress.tls.enabled }}
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: timbr-managed-cert
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+spec:
+  domains:
+    - {{ .Values.ingress.host | quote }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,55 @@
+{{- if .Values.components.scheduler.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.components.scheduler.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: scheduler
+spec:
+  replicas: {{ .Values.components.scheduler.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: scheduler
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+{{ include "timbr.labels" . | indent 8 }}
+        app.kubernetes.io/component: scheduler
+    spec:
+{{ include "timbr.imagePullSecrets" . | indent 6 }}
+      containers:
+        - name: timbr
+          image: {{ .Values.components.scheduler.image | quote }}
+          imagePullPolicy: Always
+          env:
+            - name: TIMBR_DB_HOST
+              value: {{ .Values.db.host | quote }}
+            - name: TIMBR_DB_SSL
+              value: "false"
+            - name: TIMBR_DB_USER
+              value: {{ .Values.db.user | quote }}
+            - name: TIMBR_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" . }}
+                  key: {{ .Values.db.rootPasswordSecretKey | quote }}
+            - name: TIMBR_DB_NAME
+              value: {{ .Values.db.serverDb | quote }}
+            - name: THRIFT_HOST
+              value: {{ .Values.components.server.name | quote }}
+            {{- range $k, $v := .Values.components.scheduler.env }}
+            {{- if and (ne $k "extra") (ne $v nil) }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.components.scheduler.env.extra }}
+            {{- range $k, $v := . }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+{{- end }}

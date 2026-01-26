@@ -1,0 +1,180 @@
+{{- if .Values.components.platform.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.components.platform.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: platform
+spec:
+  type: {{ .Values.components.platform.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.components.platform.service.port }}
+      targetPort: 8088
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: platform
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.components.platform.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: platform
+spec:
+  replicas: {{ .Values.components.platform.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: platform
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+{{ include "timbr.labels" . | indent 8 }}
+        app.kubernetes.io/component: platform
+    spec:
+{{ include "timbr.imagePullSecrets" . | indent 6 }}
+      containers:
+        - name: timbr-platform
+          image: {{ .Values.components.platform.image | quote }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8088
+              name: http
+          env:
+            - name: DB_CONNECTION
+              value: "mysql"
+            - name: DB_HOST
+              value: {{ .Values.db.host | quote }}
+            - name: DB_PORT
+              value: {{ .Values.db.port | quote }}
+            - name: DB_DATABASE
+              value: {{ .Values.db.platformDb | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.db.user | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" . }}
+                  key: {{ .Values.db.rootPasswordSecretKey | quote }}
+            - name: THRIFT_HOST
+              value: {{ .Values.components.server.name | quote }}
+            {{- range $k, $v := .Values.components.platform.env }}
+            {{- if and (ne $k "extra") (ne $v nil) }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.components.platform.env.extra }}
+            {{- range $k, $v := . }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+
+            {{- /* Optional LLM env */}}
+            {{- with .Values.components.platform.llm }}
+            {{- if .TIMBR_LLM_TYPE }}
+            - name: TIMBR_LLM_TYPE
+              value: {{ .TIMBR_LLM_TYPE | quote }}
+            {{- end }}
+            {{- if .TIMBR_LLM_MODEL }}
+            - name: TIMBR_LLM_MODEL
+              value: {{ .TIMBR_LLM_MODEL | quote }}
+            {{- end }}
+            {{- if .TIMBR_LLM_ENDPOINT }}
+            - name: TIMBR_LLM_ENDPOINT
+              value: {{ .TIMBR_LLM_ENDPOINT | quote }}
+            {{- end }}
+            {{- if .TIMBR_LLM_ADDITIONAL_PARAMS }}
+            - name: TIMBR_LLM_ADDITIONAL_PARAMS
+              value: {{ .TIMBR_LLM_ADDITIONAL_PARAMS | quote }}
+            {{- end }}
+            {{- if .TIMBR_LLM_APIKEY_SECRET_KEY }}
+            - name: TIMBR_LLM_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" $ }}
+                  key: {{ .TIMBR_LLM_APIKEY_SECRET_KEY | quote }}
+            {{- end }}
+            {{- end }}
+
+            {{- /* Optional OAuth env */}}
+            {{- with .Values.components.platform.oauth }}
+            {{- if .OAUTH_CLIENT_ID }}
+            - name: OAUTH_CLIENT_ID
+              value: {{ .OAUTH_CLIENT_ID | quote }}
+            {{- end }}
+            {{- if .OAUTH_BASE_URL }}
+            - name: OAUTH_BASE_URL
+              value: {{ .OAUTH_BASE_URL | quote }}
+            {{- end }}
+            {{- if .OAUTH_PROVIDER }}
+            - name: OAUTH_PROVIDER
+              value: {{ .OAUTH_PROVIDER | quote }}
+            {{- end }}
+            {{- if .OAUTH_USE_PKCE }}
+            - name: OAUTH_USE_PKCE
+              value: {{ .OAUTH_USE_PKCE | quote }}
+            {{- end }}
+            {{- if .OAUTH_SCOPES }}
+            - name: OAUTH_SCOPES
+              value: {{ .OAUTH_SCOPES | quote }}
+            {{- end }}
+            {{- if .OAUTH_ROLE_MAPPING_ENABLED }}
+            - name: OAUTH_ROLE_MAPPING_ENABLED
+              value: {{ .OAUTH_ROLE_MAPPING_ENABLED | quote }}
+            {{- end }}
+            {{- if .OAUTH_ROLE_MAPPING }}
+            - name: OAUTH_ROLE_MAPPING
+              value: {{ .OAUTH_ROLE_MAPPING | quote }}
+            {{- end }}
+            {{- if .OAUTH_ROLE_MAPPING_DEFAULT }}
+            - name: OAUTH_ROLE_MAPPING_DEFAULT
+              value: {{ .OAUTH_ROLE_MAPPING_DEFAULT | quote }}
+            {{- end }}
+            {{- if .OAUTH_ROLE_MAPPING_STRATEGY }}
+            - name: OAUTH_ROLE_MAPPING_STRATEGY
+              value: {{ .OAUTH_ROLE_MAPPING_STRATEGY | quote }}
+            {{- end }}
+            {{- if .OAUTH_ROLE_PRIORITY }}
+            - name: OAUTH_ROLE_PRIORITY
+              value: {{ .OAUTH_ROLE_PRIORITY | quote }}
+            {{- end }}
+            {{- if .AUTH_USER_REGISTRATION }}
+            - name: AUTH_USER_REGISTRATION
+              value: {{ .AUTH_USER_REGISTRATION | quote }}
+            {{- end }}
+            {{- if .AUTH_USER_REGISTRATION_ROLE }}
+            - name: AUTH_USER_REGISTRATION_ROLE
+              value: {{ .AUTH_USER_REGISTRATION_ROLE | quote }}
+            {{- end }}
+            {{- if .AZURE_TENANT_ID }}
+            - name: AZURE_TENANT_ID
+              value: {{ .AZURE_TENANT_ID | quote }}
+            {{- end }}
+            {{- if .AZURE_CLIENT_ID }}
+            - name: AZURE_CLIENT_ID
+              value: {{ .AZURE_CLIENT_ID | quote }}
+            {{- end }}
+            {{- if .AZURE_CLIENT_SECRET_SECRET_KEY }}
+            - name: AZURE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" $ }}
+                  key: {{ .AZURE_CLIENT_SECRET_SECRET_KEY | quote }}
+            {{- end }}
+            {{- if .OAUTH_SECRET_SECRET_KEY }}
+            - name: OAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" $ }}
+                  key: {{ .OAUTH_SECRET_SECRET_KEY | quote }}
+            {{- end }}
+            {{- end }}
+{{- end }}
