@@ -120,9 +120,9 @@ spec:
 ```
 You can deploy using a managed MySQL service such as Azure Database for MySQL, Amazon RDS for MySQL, or Amazon Aurora MySQL. 
 
-Ensure the database instance is configured with the following parameters:
-lower_case_table_names = 1
-group_concat_max_len = 8192000
+> Ensure the database instance is configured with the following parameters:
+> lower_case_table_names = 1
+> group_concat_max_len = 8192000
 
 These settings are required for proper application behavior and compatibility.
 
