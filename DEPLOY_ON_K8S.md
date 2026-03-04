@@ -119,6 +119,7 @@ spec:
   internalTrafficPolicy: Cluster
 ```
 You can deploy using a managed MySQL service such as Azure Database for MySQL, Amazon RDS for MySQL, or Amazon Aurora MySQL. 
+To initialize the database, obtain the required seed.sql file from your Timbr contact and run it on the MySQL instance.
 
 > Ensure the database instance is configured with the following parameters:
 > ```
