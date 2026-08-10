@@ -47,21 +47,31 @@ spec:
             - containerPort: 8088
               name: http
           env:
+            {{- if include "timbr.db.isPostgres" . }}
+            - name: IS_POSTGRES_DB
+              value: "true"
+            {{- end }}
             - name: DB_CONNECTION
-              value: "mysql"
+              value: {{ include "timbr.db.connection" . | quote }}
             - name: DB_HOST
-              value: {{ .Values.db.host | quote }}
+              value: {{ include "timbr.db.host" . | quote }}
             - name: DB_PORT
-              value: {{ .Values.db.port | quote }}
+              value: {{ include "timbr.db.port" . | quote }}
             - name: DB_DATABASE
-              value: {{ .Values.db.platformDb | quote }}
+              value: {{ include "timbr.db.platformDbName" . | quote }}
             - name: DB_USERNAME
-              value: {{ .Values.db.user | quote }}
+              value: {{ include "timbr.db.user" . | quote }}
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "timbr.secretName" . }}
-                  key: {{ .Values.db.rootPasswordSecretKey | quote }}
+                  key: {{ include "timbr.db.passwordSecretKey" . | quote }}
+            {{- if include "timbr.db.isPostgres" . }}
+            - name: POSTGRES_SCHEMA_NAME
+              value: {{ .Values.db.schema | quote }}
+            - name: TIMBR_SERVER_SCHEMA
+              value: {{ .Values.db.serverSchema | quote }}
+            {{- end }}
             - name: THRIFT_HOST
               value: {{ .Values.components.server.name | quote }}
             {{- range $k, $v := .Values.components.platform.env }}

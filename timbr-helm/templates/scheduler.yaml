@@ -26,18 +26,22 @@ spec:
           imagePullPolicy: Always
           env:
             - name: TIMBR_DB_HOST
-              value: {{ .Values.db.host | quote }}
+              value: {{ include "timbr.db.host" . | quote }}
+            {{- if include "timbr.db.isPostgres" . }}
+            - name: TIMBR_DB_PORT
+              value: {{ include "timbr.db.port" . | quote }}
+            {{- end }}
             - name: TIMBR_DB_SSL
               value: "false"
             - name: TIMBR_DB_USER
-              value: {{ .Values.db.user | quote }}
+              value: {{ include "timbr.db.user" . | quote }}
             - name: TIMBR_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "timbr.secretName" . }}
-                  key: {{ .Values.db.rootPasswordSecretKey | quote }}
+                  key: {{ include "timbr.db.passwordSecretKey" . | quote }}
             - name: TIMBR_DB_NAME
-              value: {{ .Values.db.serverDb | quote }}
+              value: {{ include "timbr.db.serverDbName" . | quote }}
             - name: THRIFT_HOST
               value: {{ .Values.components.server.name | quote }}
             {{- range $k, $v := .Values.components.scheduler.env }}

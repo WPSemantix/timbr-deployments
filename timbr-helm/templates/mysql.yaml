@@ -1,4 +1,4 @@
-{{- if .Values.mysql.enabled }}
+{{- if and .Values.mysql.enabled (eq .Values.db.type "mysql") }}
 apiVersion: v1
 kind: Service
 metadata:

@@ -1,0 +1,25 @@
+# This repository is public. Never commit raw manifests exported from a live
+# cluster (`kubectl get -o yaml`) — they carry API keys, bot tokens, client
+# secrets, tenant IDs, real hostnames and pinned cluster IPs.
+raw_samples/
+*-raw-dump.yaml
+*.kubeconfig
+
+# Real values files. Only the examples inside the Markdown guides are committed.
+values-*.yaml
+!timbr-helm/values.yaml
+
+# Local environment and secrets
+.env
+.env.*
+*.pem
+*.key
+!**/private_key.pem.example
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+CLAUDE.md

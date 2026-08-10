@@ -1,0 +1,16 @@
+services:
+  timbr-mdx:
+    image: timbr.azurecr.io/timbr-mdx:latest
+    container_name: timbr-mdx
+    environment:
+      - TIMBR_DB_JDBC=jdbc:postgresql://timbr-db:5432/timbr
+      - TIMBR_DB_JDBC_DRIVER=org.postgresql.Driver
+      - TIMBR_DB_USER=postgres
+      - TIMBR_DB_PASSWORD=db_pass
+      - TIMBR_DB_NAME=timbr_server
+      - TIMBR_PUBLIC_HOSTNAME=timbr-server
+    ports:
+      - "13000:13000"
+    networks:
+      - timbr-net
+    restart: always

@@ -34,6 +34,8 @@ Before you deploy, ensure your Kubernetes manifests are correctly configured. Th
 
 This file creates a StatefulSet and Service for the MySQL database that stores Timbr metadata.
 
+> **Note:** To use **PostgreSQL 17** instead of MySQL, follow [Deploy Timbr with PostgreSQL 17](./DEPLOY_WITH_POSTGRES.md). It provides a `timbr-postgres.yaml` manifest and the matching `timbr-server` and `timbr-platform` settings, and the ready-made manifests live in [`k8s-sample-files/postgres/`](k8s-sample-files/postgres).
+
 ```yaml
 kind: StatefulSet
 apiVersion: apps/v1
@@ -426,6 +428,30 @@ spec:
                 name: timbr-api
                 port:
                   number: 9000
+          # Required only when MCP OAuth is enabled on timbr-api.
+          # Without these the .well-known paths fall through to "/" and reach
+          # timbr-platform instead of timbr-api.
+          - path: /.well-known/oauth-protected-resource
+            pathType: Prefix
+            backend:
+              service:
+                name: timbr-api
+                port:
+                  number: 9000
+          - path: /.well-known/oauth-authorization-server
+            pathType: Prefix
+            backend:
+              service:
+                name: timbr-api
+                port:
+                  number: 9000
+          - path: /.well-known/openid-configuration
+            pathType: Prefix
+            backend:
+              service:
+                name: timbr-api
+                port:
+                  number: 9000
 ```
 
 > **Important:** Replace `<hostname_name>` with your desired hostname.
@@ -492,6 +518,30 @@ spec:
                 port:
                   number: 9000
           - path: /timbr/api
+            pathType: Prefix
+            backend:
+              service:
+                name: timbr-api
+                port:
+                  number: 9000
+          # Required only when MCP OAuth is enabled on timbr-api.
+          # Without these the .well-known paths fall through to "/" and reach
+          # timbr-platform instead of timbr-api.
+          - path: /.well-known/oauth-protected-resource
+            pathType: Prefix
+            backend:
+              service:
+                name: timbr-api
+                port:
+                  number: 9000
+          - path: /.well-known/oauth-authorization-server
+            pathType: Prefix
+            backend:
+              service:
+                name: timbr-api
+                port:
+                  number: 9000
+          - path: /.well-known/openid-configuration
             pathType: Prefix
             backend:
               service:

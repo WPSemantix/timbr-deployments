@@ -792,3 +792,385 @@ Using `JWT_USE_TENANT_USER` Environment Variable Example
 > 
 > Timbr will authenticate the user with the username `tenant-5/bob`
 
+## How to setup the Timbr Chat Bot for Microsoft Teams and Slack
+
+The Timbr Chat Bot lets users ask questions about an ontology in natural language directly from Microsoft Teams or Slack. It runs inside the **timbr-api** service - there is no extra container to deploy.
+
+Teams and Slack share the same master switch (`ENABLE_CHAT_BOT`) and the same default ontology or agent. You can enable either platform on its own, or both at once.
+
+### Prerequisites
+
+- **An LLM must be configured on timbr-api.** `TIMBR_LLM_TYPE`, `TIMBR_LLM_MODEL` and `TIMBR_LLM_APIKEY` must all be set on the **timbr-api** service.
+- **A publicly reachable HTTPS endpoint.** Webhooks are delivered by the Azure Bot Service (Teams) and by Slack, so your Timbr API host must be reachable from the internet with a valid certificate. Self-signed certificates will not work.
+- **An ontology or an agent** that the bot answers from.
+
+### Microsoft Teams
+
+#### Step 1: Register an Azure Bot
+
+In the Azure Portal, create an **Azure Bot** resource:
+
+1. Choose a unique bot handle.
+2. Select **Single tenant** as the type (recommended for internal use).
+3. Select **Create new Microsoft App ID**.
+
+#### Step 2: Configure the messaging endpoint
+
+In the bot's **Configuration** blade, set the **Messaging endpoint** to:
+
+```
+https://<your-timbr-api-host>/timbr/api/chatbot/teams/api/messages
+```
+
+Then:
+
+1. Copy the **Microsoft App ID** - this becomes `CHAT_BOT_TEAMS_APP_ID`.
+2. Go to **Configuration → Manage Password** and generate a client secret. Copy the secret **value** (not the secret ID) - this becomes `CHAT_BOT_TEAMS_APP_PASSWORD`.
+3. Copy the **Directory (tenant) ID** - this becomes `CHAT_BOT_TEAMS_TENANT_ID`.
+
+#### Step 3: Enable the Microsoft Teams channel
+
+In the bot's **Channels** blade, add the **Microsoft Teams** channel.
+
+#### Step 4: Chat Bot Environment Variables
+
+All of these are set on the **timbr-api** service.
+
+| Environment Variable | Required | Default Value | Description |
+|----------------------|----------|---------------|-------------|
+| `ENABLE_CHAT_BOT` | ✔️ | `false` | Master switch. Must be set to `true` to enable the chat bot. |
+| `CHAT_BOT_DEFAULT_ONTOLOGY` | ✔️* | _None_ | The ontology the bot queries by default. Set **exactly one** of this or `CHAT_BOT_DEFAULT_AGENT`. |
+| `CHAT_BOT_DEFAULT_AGENT` | ✔️* | _None_ | The agent the bot uses instead of an ontology. Set **exactly one** of this or `CHAT_BOT_DEFAULT_ONTOLOGY`. |
+| `CHAT_BOT_TEAMS_APP_ID` | ✔️ | _None_ | The Microsoft App ID from the Azure Bot registration. |
+| `CHAT_BOT_TEAMS_APP_PASSWORD` | ✔️ | _None_ | The client secret **value** generated for the Azure Bot. |
+| `CHAT_BOT_TEAMS_TENANT_ID` | ✔️ | _None_ | The Directory (tenant) ID. Required for single-tenant bots; leave empty for multi-tenant. |
+| `CHAT_BOT_DEFAULT_PARAMS` | ✖️ | _None_ | Optional JSON overrides passed in the `/answer` header. |
+| `CHAT_BOT_MAX_PREVIEW_ROWS` | ✖️ | `50` | Maximum rows shown inline in a chat reply. |
+| `CHAT_BOT_MAX_EXPORT_ROWS` | ✖️ | `10000` | Maximum rows included in a CSV export. |
+| `CHAT_BOT_RESULT_STATE_TTL_SECONDS` | ✖️ | `86400` | How long a query result stays available for download (24 hours). |
+| `CHAT_BOT_IDENTITY_CACHE_TTL_SECONDS` | ✖️ | `3600` | How long a resolved chat identity is cached. |
+| `CHAT_BOT_DEDUP_TTL_SECONDS` | ✖️ | `300` | Window used to discard duplicate webhook deliveries. |
+| `CHAT_BOT_INFLIGHT_TTL_SECONDS` | ✖️ | `120` | How long an in-flight request is tracked before being considered abandoned. |
+
+\* Exactly one of `CHAT_BOT_DEFAULT_ONTOLOGY` or `CHAT_BOT_DEFAULT_AGENT` is required.
+
+#### Step 5: Build and sideload the Teams app package
+
+Create a ZIP archive containing exactly these three files **at the root** of the archive (not inside a folder):
+
+| File | Requirement |
+|------|-------------|
+| `manifest.json` | `id` and `botId` both set to the Microsoft App ID; `validDomains` must include your Timbr API host |
+| `color.png` | 192×192, full colour |
+| `outline.png` | 32×32, monochrome |
+
+Increment the `version` field in `manifest.json` every time you update the package, otherwise Teams will not pick up the change.
+
+To upload it:
+
+1. A Teams administrator must allow custom apps: **Teams Admin Center → Teams apps → Setup policies → Upload custom apps**.
+2. Users then go to **Apps → Manage your apps → Upload a custom app** and select the ZIP.
+
+### Slack
+
+Slack uses the same `ENABLE_CHAT_BOT` switch and the same default ontology or agent, plus two credentials from your Slack app configuration.
+
+| Environment Variable | Required | Default Value | Description |
+|----------------------|----------|---------------|-------------|
+| `CHAT_BOT_SLACK_BOT_TOKEN` | ✔️ | _None_ | The Slack bot user OAuth token (begins with `xoxb-`). |
+| `CHAT_BOT_SLACK_SIGNING_SECRET` | ✔️ | _None_ | The Slack app signing secret, used to verify that requests really come from Slack. |
+
+### Deployment options
+
+- **Docker Compose Deployment**
+
+    In your `docker-compose.yaml` add those changes to the **timbr-api** service:
+
+    ``` yaml
+    services:
+      timbr-api:
+        # ...
+        environment:
+          # ...
+          - ENABLE_CHAT_BOT=true
+          - CHAT_BOT_DEFAULT_ONTOLOGY=<your-ontology-name>
+          - CHAT_BOT_TEAMS_APP_ID=<teams-app-id>
+          - CHAT_BOT_TEAMS_APP_PASSWORD=<teams-app-password>
+          - CHAT_BOT_TEAMS_TENANT_ID=<azure-tenant-id>
+          - CHAT_BOT_SLACK_BOT_TOKEN=<slack-bot-token>
+          - CHAT_BOT_SLACK_SIGNING_SECRET=<slack-signing-secret>
+    ```
+
+- **K8S Deployment**
+
+    In your **timbr-api** deployment YAML file, configure the following environment variables:
+
+    ```yaml
+    spec:
+      # ...
+      template:
+        # ...
+        spec:
+          # ...
+          containers:
+            - name: timbr-api
+              # ...
+              env:
+                # ...
+                - name: ENABLE_CHAT_BOT
+                  value: 'true'
+                - name: CHAT_BOT_DEFAULT_ONTOLOGY
+                  value: <your-ontology-name>
+                - name: CHAT_BOT_TEAMS_APP_ID
+                  value: <teams-app-id>
+                - name: CHAT_BOT_TEAMS_APP_PASSWORD
+                  value: <teams-app-password>
+                - name: CHAT_BOT_TEAMS_TENANT_ID
+                  value: <azure-tenant-id>
+                - name: CHAT_BOT_SLACK_BOT_TOKEN
+                  value: <slack-bot-token>
+                - name: CHAT_BOT_SLACK_SIGNING_SECRET
+                  value: <slack-signing-secret>
+    ```
+
+    > **Note:** `CHAT_BOT_TEAMS_APP_PASSWORD`, `CHAT_BOT_SLACK_BOT_TOKEN` and `CHAT_BOT_SLACK_SIGNING_SECRET` are credentials. Store them in a Kubernetes Secret and reference them with `secretKeyRef` rather than writing them into the manifest.
+
+- **Helm Deployment**
+
+    In your `values-<your-cloud>.yaml`:
+
+    ```yaml
+    secrets:
+      data:
+        teamsAppPassword: "<teams-app-password>"
+        slackBotToken: "<slack-bot-token>"
+        slackSigningSecret: "<slack-signing-secret>"
+
+    components:
+      api:
+        llm:
+          TIMBR_LLM_TYPE: "OpenAI"
+          TIMBR_LLM_MODEL: "<model-name>"
+        chatBot:
+          ENABLE_CHAT_BOT: "true"
+          CHAT_BOT_DEFAULT_ONTOLOGY: "<your-ontology-name>"
+          CHAT_BOT_TEAMS_APP_ID: "<teams-app-id>"
+          CHAT_BOT_TEAMS_TENANT_ID: "<azure-tenant-id>"
+    ```
+
+    The chart resolves the three credentials from the shared `timbr-secrets` Secret, so they never appear as plaintext env values in the rendered manifests.
+
+### Exposed Endpoints
+
+| Route | Purpose |
+|-------|---------|
+| `POST /timbr/api/chatbot/teams/api/messages` | Bot Framework messaging endpoint. This is the URL you configure in the Azure Bot. |
+| `GET /timbr/api/chatbot/health` | Readiness check for the chat bot. |
+| `GET /timbr/api/chatbot/download/<id>` | CSV export download for a previous query result. |
+
+> **Note:** No new ingress rules are required. All three routes sit under `/timbr/api`, which the ingress samples in [`k8s-sample-files/optional-services/timbr-ingress/`](k8s-sample-files/optional-services/timbr-ingress) and the Helm chart already route to `timbr-api:9000`.
+
+### Verifying the setup
+
+After restarting **timbr-api**, check that the chat bot is live:
+
+```bash
+curl https://<your-timbr-api-host>/timbr/api/chatbot/health
+```
+
+Then send a direct message to the bot in Teams or Slack. If the bot does not respond, confirm that the messaging endpoint URL is reachable from the internet and that the certificate is valid - the Azure Bot Service silently drops deliveries to hosts it cannot verify.
+
+## How to setup MCP OAuth authentication for timbr-api
+
+Timbr exposes an [MCP](https://modelcontextprotocol.io) server at `/timbr/api/mcp`, letting MCP clients such as Claude, VS Code, MCP Inspector, and Copilot Studio query your ontologies. MCP OAuth secures that endpoint with your identity provider, so each user connects with their own corporate credentials and queries run with their own Timbr permissions.
+
+This section uses Azure AD (Microsoft Entra ID) as the identity provider. It builds on the JWT configuration described in [How to setup JWT Token (Azure or Keycloack) for timbr-api](#how-to-setup-jwt-token-azure-or-keycloack-for-timbr-api).
+
+### Prerequisites
+
+- **A publicly reachable HTTPS endpoint** for the Timbr API host, with a valid certificate.
+- Access to Azure AD or your organization's identity provider.
+
+### Step 1: Register the resource app
+
+Create an app registration that represents the Timbr API itself:
+
+1. Name it something like `Timbr MCP API`.
+2. Set the **Application ID URI** to `api://<app-id>`.
+3. Add a scope named `session:scope:analyst`.
+4. Record the **Application (client) ID** - this is your *resource app client ID*, used for both `MCP_OAUTH_AUDIENCE` and `MCP_OAUTH_SCOPES`.
+
+### Step 2: Register client apps
+
+Create one app registration per MCP client type, and for each one add API permissions to the `Timbr MCP API` resource and select its scopes.
+
+| Client | Registration type | Redirect URIs |
+|--------|-------------------|---------------|
+| MCP Inspector | Single-page application | `http://localhost:6274/oauth/callback` |
+| Claude.ai | Web | Claude's callback URL; requires a client secret |
+| VS Code | Public client (mobile/desktop) | `http://127.0.0.1/`, `http://127.0.0.1:33418/`, `https://vscode.dev/redirect`, `https://insiders.vscode.dev/redirect` |
+| Copilot Studio | - | Requires Dynamic Client Registration (see below) |
+
+### Step 3: MCP OAuth Environment Variables
+
+All of these are set on the **timbr-api** service.
+
+| Environment Variable | Required | Default Value | Description |
+|----------------------|----------|---------------|-------------|
+| `MCP_OAUTH_ENABLED` | ✔️ | `false` | Must be `true` to activate OAuth on the MCP endpoint. |
+| `MCP_OAUTH_RESOURCE_URL` | ✔️ | _None_ | The external Timbr URL, e.g. `https://timbr.example.com`. Must match the host in the published server metadata. |
+| `MCP_OAUTH_AUDIENCE` | ✖️ | _auto-derived_ | Token audience - the resource app client ID. |
+| `MCP_OAUTH_ISSUER` | ✖️ | _auto-derived_ | Token issuer, e.g. `https://login.microsoftonline.com/<tenant-id>/v2.0`. |
+| `MCP_OAUTH_AUTHORIZATION_SERVER` | ✖️ | _auto-derived_ | The identity provider's OAuth endpoint, e.g. `https://login.microsoftonline.com/<tenant-id>/v2.0`. |
+| `MCP_OAUTH_JWKS_URL` | ✖️ | _auto-derived_ | Public key endpoint used to validate tokens, e.g. `https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys`. |
+| `MCP_OAUTH_SCOPES` | ✖️ | _None_ | Scopes advertised to clients, e.g. `api://<resource-app-client-id>/.default`. |
+| `MCP_OAUTH_DCR_ENABLED` | ✖️ | `false` | Enables Dynamic Client Registration. Required for Copilot Studio. |
+| `MCP_OAUTH_CLIENT_ID` | ✖️ | _None_ | Client ID used for DCR. Required when `MCP_OAUTH_DCR_ENABLED` is `true`. |
+| `MCP_OAUTH_CLIENT_SECRET` | ✖️ | _None_ | Client secret used for DCR. Required when `MCP_OAUTH_DCR_ENABLED` is `true`. |
+
+> **Note:** `MCP_OAUTH_AUTHORIZATION_SERVER`, `MCP_OAUTH_JWKS_URL`, `MCP_OAUTH_AUDIENCE` and `MCP_OAUTH_ISSUER` are **auto-derived from your JWT configuration** when left unset. Set them explicitly only if your MCP identity provider differs from the one used for JWT authentication.
+
+### Step 4: Expose the discovery endpoints
+
+MCP clients discover the OAuth configuration before they ever authenticate, using three well-known paths. These must be routed to **timbr-api** on port 9000.
+
+| Path | Already routed by the standard samples? |
+|------|------------------------------------------|
+| `/timbr/api/mcp` | ✔️ - covered by the existing `/timbr/api` rule |
+| `/timbr/api/oauth/authorize` | ✔️ - covered by the existing `/timbr/api` rule |
+| `/timbr/api/oauth/token` | ✔️ - covered by the existing `/timbr/api` rule |
+| `/.well-known/oauth-protected-resource` | ✖️ - **new rule required** |
+| `/.well-known/oauth-authorization-server` | ✖️ - **new rule required** |
+| `/.well-known/openid-configuration` | ✖️ - **new rule required** |
+
+The three `.well-known` paths need explicit rules because `/` routes to **timbr-platform**. Without them the discovery requests reach the platform UI instead of the API, and clients fail to connect with no useful error.
+
+- **K8S Ingress**
+
+    Add these paths to your ingress manifest, alongside the existing `/timbr/api` rule:
+
+    ```yaml
+    - path: /.well-known/oauth-protected-resource
+      pathType: Prefix
+      backend:
+        service:
+          name: timbr-api
+          port:
+            number: 9000
+    - path: /.well-known/oauth-authorization-server
+      pathType: Prefix
+      backend:
+        service:
+          name: timbr-api
+          port:
+            number: 9000
+    - path: /.well-known/openid-configuration
+      pathType: Prefix
+      backend:
+        service:
+          name: timbr-api
+          port:
+            number: 9000
+    ```
+
+    Both ingress samples in [`k8s-sample-files/optional-services/timbr-ingress/`](k8s-sample-files/optional-services/timbr-ingress) already contain these rules.
+
+- **Docker Compose (timbr-proxy)**
+
+    Add matching `location` blocks to your nginx configuration. See [`nginx-HTTPS-smaple.conf`](docker-compose-sample-files/optional-services/timbr-proxy/nginx-HTTPS-smaple.conf), which already includes them. Use the HTTPS configuration - MCP OAuth requires a valid certificate.
+
+- **Helm Deployment**
+
+    Setting `MCP_OAUTH_ENABLED` publishes the three paths on the chart's Ingress automatically:
+
+    ```yaml
+    secrets:
+      data:
+        mcpOauthClientSecret: "<azure-client-secret>"
+
+    components:
+      api:
+        mcpOauth:
+          MCP_OAUTH_ENABLED: "true"
+          MCP_OAUTH_RESOURCE_URL: "https://timbr.example.com"
+          MCP_OAUTH_AUDIENCE: "<resource-app-client-id>"
+          MCP_OAUTH_SCOPES: "api://<resource-app-client-id>/.default"
+          MCP_OAUTH_DCR_ENABLED: "true"
+          MCP_OAUTH_CLIENT_ID: "<azure-client-app-id>"
+    ```
+
+### Dynamic Client Registration (DCR)
+
+Azure AD does not support Dynamic Client Registration natively. When `MCP_OAUTH_DCR_ENABLED` is `true` and both `MCP_OAUTH_CLIENT_ID` and `MCP_OAUTH_CLIENT_SECRET` are set, Timbr handles client registration itself: it returns pre-configured credentials during the registration handshake, so clients like Claude Desktop and Copilot Studio can connect without anyone creating an app registration for them by hand.
+
+### Deployment options
+
+- **Docker Compose Deployment**
+
+    In your `docker-compose.yaml` add those changes to the **timbr-api** service:
+
+    ``` yaml
+    services:
+      timbr-api:
+        # ...
+        environment:
+          # ...
+          - MCP_OAUTH_ENABLED=true
+          - MCP_OAUTH_RESOURCE_URL=https://timbr.example.com
+          - MCP_OAUTH_AUDIENCE=<resource-app-client-id>
+          - MCP_OAUTH_SCOPES=api://<resource-app-client-id>/.default
+          - MCP_OAUTH_DCR_ENABLED=true
+          - MCP_OAUTH_CLIENT_ID=<azure-client-app-id>
+          - MCP_OAUTH_CLIENT_SECRET=<azure-client-secret>
+    ```
+
+- **K8S Deployment**
+
+    In your **timbr-api** deployment YAML file, configure the following environment variables:
+
+    ```yaml
+    spec:
+      # ...
+      template:
+        # ...
+        spec:
+          # ...
+          containers:
+            - name: timbr-api
+              # ...
+              env:
+                # ...
+                - name: MCP_OAUTH_ENABLED
+                  value: 'true'
+                - name: MCP_OAUTH_RESOURCE_URL
+                  value: https://timbr.example.com
+                - name: MCP_OAUTH_AUDIENCE
+                  value: <resource-app-client-id>
+                - name: MCP_OAUTH_SCOPES
+                  value: api://<resource-app-client-id>/.default
+                - name: MCP_OAUTH_DCR_ENABLED
+                  value: 'true'
+                - name: MCP_OAUTH_CLIENT_ID
+                  value: <azure-client-app-id>
+                - name: MCP_OAUTH_CLIENT_SECRET
+                  value: <azure-client-secret>
+    ```
+
+    > **Note:** `MCP_OAUTH_CLIENT_SECRET` is a credential. Store it in a Kubernetes Secret and reference it with `secretKeyRef` rather than writing it into the manifest.
+
+### Verifying the setup
+
+After restarting **timbr-api**, confirm that discovery works:
+
+```bash
+curl https://<your-timbr-api-host>/.well-known/oauth-protected-resource
+```
+
+```bash
+curl -s https://<your-timbr-api-host>/.well-known/oauth-authorization-server | jq .authorization_endpoint
+```
+
+The `authorization_endpoint` **must** use the `https` scheme. If it comes back as `http`, your ingress or proxy is not forwarding the original protocol - add the `X-Forwarded-Proto` header.
+
+Connecting from a client follows the standard flow: the client requests `https://<your-timbr-api-host>/timbr/api/mcp`, receives `401` plus discovery metadata, redirects the user to Azure AD, and then sends the resulting access token with every subsequent request. Timbr validates the token against the JWKS endpoint and maps the token identity (email or UPN) to a Timbr user account.
+

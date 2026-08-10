@@ -48,16 +48,22 @@ spec:
               name: ga
           env:
             - name: TIMBR_DB_JDBC
-              value: {{ printf "jdbc:mysql://%s:%v/" .Values.db.host .Values.db.port | quote }}
+              value: {{ include "timbr.db.jdbcUrlSlash" . | quote }}
+            - name: TIMBR_DB_JDBC_DRIVER
+              value: {{ include "timbr.db.jdbcDriver" . | quote }}
+            {{- with include "timbr.db.jdbcParams" . }}
+            - name: TIMBR_DB_JDBC_PARAMS
+              value: {{ . | quote }}
+            {{- end }}
             - name: TIMBR_DB_USER
-              value: {{ .Values.db.user | quote }}
+              value: {{ include "timbr.db.user" . | quote }}
             - name: TIMBR_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "timbr.secretName" . }}
-                  key: {{ .Values.db.rootPasswordSecretKey | quote }}
+                  key: {{ include "timbr.db.passwordSecretKey" . | quote }}
             - name: TIMBR_DB_NAME
-              value: {{ .Values.db.serverDb | quote }}
+              value: {{ include "timbr.db.serverDbName" . | quote }}
             - name: THRIFT_HOST
               value: {{ .Values.components.server.name | quote }}
             {{- range $k, $v := .Values.components.ga.env }}

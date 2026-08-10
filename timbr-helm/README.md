@@ -182,6 +182,18 @@ mysql:
     size: 30Gi
     storageClassName: "gp3"  # or leave empty for auto-detection
 
+# To use PostgreSQL 17 instead, replace the mysql block above with:
+#   db:
+#     type: postgres
+#   mysql:
+#     enabled: false
+#   postgres:
+#     enabled: true
+#     persistence:
+#       size: 30Gi
+#       storageClassName: "gp3"
+# See ../DEPLOY_WITH_POSTGRES.md
+
 components:
   cache:
     persistence:
@@ -331,6 +343,18 @@ mysql:
     size: 30Gi
     storageClassName: "managed-csi"  # or leave empty
 
+# To use PostgreSQL 17 instead, replace the mysql block above with:
+#   db:
+#     type: postgres
+#   mysql:
+#     enabled: false
+#   postgres:
+#     enabled: true
+#     persistence:
+#       size: 30Gi
+#       storageClassName: "managed-csi"
+# See ../DEPLOY_WITH_POSTGRES.md
+
 components:
   cache:
     persistence:
@@ -365,6 +389,18 @@ mysql:
   persistence:
     size: 30Gi
     storageClassName: "managed-csi"
+
+# To use PostgreSQL 17 instead, replace the mysql block above with:
+#   db:
+#     type: postgres
+#   mysql:
+#     enabled: false
+#   postgres:
+#     enabled: true
+#     persistence:
+#       size: 30Gi
+#       storageClassName: "managed-csi"
+# See ../DEPLOY_WITH_POSTGRES.md
 
 components:
   cache:
@@ -481,6 +517,18 @@ mysql:
     size: 30Gi
     storageClassName: "standard-rwo"  # or "premium-rwo" or leave empty
 
+# To use PostgreSQL 17 instead, replace the mysql block above with:
+#   db:
+#     type: postgres
+#   mysql:
+#     enabled: false
+#   postgres:
+#     enabled: true
+#     persistence:
+#       size: 30Gi
+#       storageClassName: "standard-rwo"
+# See ../DEPLOY_WITH_POSTGRES.md
+
 components:
   cache:
     persistence:
@@ -576,6 +624,18 @@ mysql:
     size: 30Gi
     storageClassName: ""  # Use cluster default or specify your storage class
 
+# To use PostgreSQL 17 instead, replace the mysql block above with:
+#   db:
+#     type: postgres
+#   mysql:
+#     enabled: false
+#   postgres:
+#     enabled: true
+#     persistence:
+#       size: 30Gi
+#       storageClassName: ""
+# See ../DEPLOY_WITH_POSTGRES.md
+
 components:
   cache:
     persistence:
@@ -648,7 +708,30 @@ kubectl get service -n ingress-nginx nginx-ingress-ingress-nginx-controller
 | `ingress.gcp.staticIpName` | Static IP name | `""` |
 | `ingress.gcp.globalStaticIp` | Use global static IP | `false` |
 
+### Database Configuration
+
+The chart supports two metadata database backends, selected with a single switch. `db.type` drives the JDBC URL scheme, the JDBC driver, the SQLAlchemy dialect, the default host, port and user, and the PostgreSQL-only variables (`IS_POSTGRES_DB`, `POSTGRES_SCHEMA_NAME`, `TIMBR_SERVER_SCHEMA`) — you do not set those yourself.
+
+Any `db.*` value you set explicitly always wins over the type-based default.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `db.type` | Metadata database backend (`mysql`, `postgres`) | `mysql` |
+| `db.host` | Database hostname | `mysql.name` / `postgres.name` |
+| `db.port` | Database port | `3306` (MySQL) / `5432` (PostgreSQL) |
+| `db.user` | Database user | `root` (MySQL) / `postgres` (PostgreSQL) |
+| `db.passwordSecretKey` | Secret key holding the password | `mysqlRootPassword` / `postgresPassword` |
+| `db.jdbcParams` | Extra JDBC parameters | `useSSL=false&allowPublicKeyRetrieval=true` (MySQL) / none (PostgreSQL) |
+| `db.platformDb` | Platform database (MySQL only) | `timbr_platform` |
+| `db.serverDb` | Server database (MySQL only) | `timbr_server` |
+| `db.database` | Shared database (PostgreSQL only) | `timbr` |
+| `db.schema` | Platform schema, `POSTGRES_SCHEMA_NAME` (PostgreSQL only) | `timbr_platform` |
+| `db.serverSchema` | Server schema, `TIMBR_SERVER_SCHEMA` (PostgreSQL only) | `timbr_server` |
+| `db.metastoreSchema` | Virtualization metastore schema (PostgreSQL only) | `timbr_metastore` |
+
 ### MySQL Configuration
+
+Used when `db.type: mysql`. The StatefulSet is additionally gated on `db.type`, so it is never rendered under a PostgreSQL deployment even if `mysql.enabled` is left at `true`.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -657,14 +740,50 @@ kubectl get service -n ingress-nginx nginx-ingress-ingress-nginx-controller
 | `mysql.persistence.size` | MySQL storage size | `30Gi` |
 | `mysql.persistence.storageClassName` | Storage class (auto-detected if empty) | `""` |
 
+### PostgreSQL Configuration
+
+Used when `db.type: postgres`. The image ships **PostgreSQL 17** and bootstraps the `timbr` database with its `timbr_platform` and `timbr_server` schemas on first start.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `postgres.enabled` | Deploy the in-cluster PostgreSQL StatefulSet | `false` |
+| `postgres.image` | PostgreSQL 17 image | `timbr.azurecr.io/timbr-postgres:latest` |
+| `postgres.persistence.size` | PostgreSQL storage size | `30Gi` |
+| `postgres.persistence.storageClassName` | Storage class (auto-detected if empty) | `""` |
+
+Minimal PostgreSQL deployment:
+
+```yaml
+db:
+  type: postgres
+mysql:
+  enabled: false
+postgres:
+  enabled: true
+secrets:
+  data:
+    postgresPassword: "<your-database-password>"
+```
+
+To use a **managed** PostgreSQL service instead of the in-cluster StatefulSet, set `postgres.enabled: false` and point `db.host` at the managed endpoint.
+
+> **IMPORTANT:** A managed instance starts out empty. Timbr needs a seed file and an initialization script — obtained from the Timbr team — to be applied before the platform and server start. See [Using a Managed PostgreSQL Service](../DEPLOY_WITH_POSTGRES.md#7-using-a-managed-postgresql-service).
+
 ### Secrets Configuration
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `secrets.create` | Create secrets | `true` |
+| `secrets.existingSecretName` | Use an existing secret instead of creating one | `""` |
 | `secrets.data.mysqlRootPassword` | MySQL root password | `welcome` |
+| `secrets.data.postgresPassword` | PostgreSQL password | `welcome` |
 | `secrets.data.llmApiKey` | LLM API key | `""` |
 | `secrets.data.oauthSecret` | OAuth secret | `""` |
+| `secrets.data.azureClientSecret` | Azure client secret | `""` |
+| `secrets.data.teamsAppPassword` | Microsoft Teams bot client secret | `""` |
+| `secrets.data.slackBotToken` | Slack bot user OAuth token | `""` |
+| `secrets.data.slackSigningSecret` | Slack app signing secret | `""` |
+| `secrets.data.mcpOauthClientSecret` | MCP OAuth client secret (DCR) | `""` |
 
 ### Component Configuration
 
@@ -676,6 +795,24 @@ Each component (`platform`, `api`, `server`, `mdx`, `ga`, `scheduler`, `cache`, 
 | `components.<name>.image` | Container image | (component-specific) |
 | `components.<name>.replicas` | Number of replicas | `1` |
 | `components.<name>.service.port` | Service port | (component-specific) |
+| `components.<name>.env` | Extra environment variables | (component-specific) |
+| `components.<name>.env.extra` | Escape hatch for arbitrary environment variables | `{}` |
+
+#### Chat Bot and MCP OAuth (timbr-api)
+
+`components.api` has two extra optional blocks. Every field is empty by default and an empty field renders no environment variable at all.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `components.api.chatBot.ENABLE_CHAT_BOT` | Enable the Microsoft Teams / Slack chat bot | `""` |
+| `components.api.chatBot.CHAT_BOT_DEFAULT_ONTOLOGY` | Default ontology (set this or `CHAT_BOT_DEFAULT_AGENT`) | `""` |
+| `components.api.chatBot.CHAT_BOT_TEAMS_APP_ID` | Microsoft App ID from the Azure Bot registration | `""` |
+| `components.api.chatBot.CHAT_BOT_TEAMS_TENANT_ID` | Directory (tenant) ID, for single-tenant bots | `""` |
+| `components.api.mcpOauth.MCP_OAUTH_ENABLED` | Enable OAuth on the MCP endpoint. Also publishes the three `.well-known` ingress paths | `""` |
+| `components.api.mcpOauth.MCP_OAUTH_RESOURCE_URL` | External Timbr URL | `""` |
+| `components.api.mcpOauth.MCP_OAUTH_DCR_ENABLED` | Enable Dynamic Client Registration | `""` |
+
+Credentials for both blocks are resolved from the shared secret via `*_SECRET_KEY` values, so they never appear as plaintext in the rendered manifests. See [Optional Services for Deployment with Timbr](../DEPLOYMENTS_OPTIONAL_SERVICES.md) for the full walkthroughs and the complete variable reference.
 
 ---
 
@@ -683,7 +820,8 @@ Each component (`platform`, `api`, `server`, `mdx`, `ga`, `scheduler`, `cache`, 
 
 The Timbr platform consists of the following components:
 
-- **timbr-mysql**: MySQL database for metadata storage
+- **timbr-mysql**: MySQL database for metadata storage (when `db.type: mysql`)
+- **timbr-postgres**: PostgreSQL 17 database for metadata storage (when `db.type: postgres`)
 - **timbr-platform**: Main Timbr web interface (Superset-based)
 - **timbr-server**: Timbr SQL server (Hive-compatible)
 - **timbr-api**: REST API service
@@ -780,9 +918,20 @@ kubectl describe pvc <PVC_NAME> -n timbr
 - Verify registry credentials are valid
 
 #### Database Connection Issues
+
+**MySQL (`db.type: mysql`)**
 - Check MySQL pod is running: `kubectl get pod -n timbr -l app.kubernetes.io/component=mysql`
 - Check MySQL logs: `kubectl logs -n timbr <mysql-pod-name>`
 - Verify database password in secrets
+
+**PostgreSQL (`db.type: postgres`)**
+- Check the PostgreSQL pod is running: `kubectl get pod -n timbr -l app.kubernetes.io/component=postgres`
+- Check PostgreSQL logs: `kubectl logs -n timbr <postgres-pod-name>`
+- Verify the schemas were created: `kubectl exec -n timbr <postgres-pod-name> -- psql -U postgres -d timbr -c "\dn"` — you should see `timbr_platform` and `timbr_server`
+- Verify `secrets.data.postgresPassword` is set. Note that the PostgreSQL backend reads `postgresPassword` from the shared secret, not `mysqlRootPassword`
+- If no database resources render at all, confirm you set **both** `db.type: postgres` and `postgres.enabled: true` — the StatefulSet is gated on both
+- If `timbr-server` reports a JDBC driver error, check that no stale `TIMBR_DB_JDBC_PARAMS` override is set in `components.server.env.extra`. MySQL parameters such as `useSSL` are not valid for the PostgreSQL driver
+- Using a managed PostgreSQL instance? An empty instance will fail here. It must be seeded first — see [Using a Managed PostgreSQL Service](../DEPLOY_WITH_POSTGRES.md#7-using-a-managed-postgresql-service)
 
 ---
 

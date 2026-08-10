@@ -37,10 +37,16 @@ secrets:
   existingSecretName: ""
   data:
     mysqlRootPassword: "welcome"
+    postgresPassword: "db_pass"   # POSTGRES_DB_PASSWORD / DB_PASSWORD / TIMBR_DB_PASSWORD (db.type=postgres)
     llmApiKey: ""            # TIMBR_LLM_APIKEY
     oauthSecret: ""          # OAUTH_SECRET
     azureClientSecret: ""    # AZURE_CLIENT_SECRET
+    teamsAppPassword: ""     # CHAT_BOT_TEAMS_APP_PASSWORD
+    slackBotToken: ""        # CHAT_BOT_SLACK_BOT_TOKEN
+    slackSigningSecret: ""   # CHAT_BOT_SLACK_SIGNING_SECRET
+    mcpOauthClientSecret: "" # MCP_OAUTH_CLIENT_SECRET
 
+# In-cluster MySQL metadata database. Used when db.type = mysql.
 mysql:
   enabled: true
   name: timbr-mysql
@@ -57,13 +63,45 @@ mysql:
     MYSQL_ROOT_PASSWORD_SECRET_KEY: mysqlRootPassword
     MYSQL_DATABASE: timbr_platform
 
+# In-cluster PostgreSQL 17 metadata database. Used when db.type = postgres.
+# Set postgres.enabled=true and mysql.enabled=false to switch backends.
+# Leave both disabled to point db.host at a managed PostgreSQL service - see
+# "Using a Managed PostgreSQL Service" in DEPLOY_WITH_POSTGRES.md.
+postgres:
+  enabled: false
+  name: timbr-postgres
+  image: timbr.azurecr.io/timbr-postgres:latest   # ships PostgreSQL 17
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 5432
+  persistence:
+    enabled: true
+    size: 30Gi
+    storageClassName: ""  # Auto-detected based on cloudProvider: gp3 (AWS), managed-csi (Azure), standard-rwo (GCP)
+  env:
+    POSTGRES_DB_PASSWORD_SECRET_KEY: postgresPassword
+
 db:
-  host: timbr-mysql
-  port: 3306
-  user: root
+  # Metadata database backend: mysql | postgres.
+  # Everything below is auto-derived from this unless you set it explicitly.
+  type: mysql
+  host: ""              # default: mysql.name (mysql) / postgres.name (postgres)
+  port: ""              # default: 3306 (mysql) / 5432 (postgres)
+  user: ""              # default: root (mysql) / postgres (postgres)
+  passwordSecretKey: "" # default: db.rootPasswordSecretKey (mysql) / postgresPassword (postgres)
+  jdbcParams: ""        # default: useSSL=false&allowPublicKeyRetrieval=true (mysql) / none (postgres)
   rootPasswordSecretKey: mysqlRootPassword
+
+  # MySQL layout: two separate databases.
   platformDb: timbr_platform
   serverDb: timbr_server
+
+  # PostgreSQL layout: one database holding several schemas.
+  database: timbr
+  schema: timbr_platform          # POSTGRES_SCHEMA_NAME
+  serverSchema: timbr_server      # TIMBR_SERVER_SCHEMA
+  metastoreSchema: timbr_metastore
 
 ingress:
   enabled: true
@@ -163,6 +201,48 @@ components:
       TIMBR_LLM_ENDPOINT: ""
       TIMBR_LLM_ADDITIONAL_PARAMS: ""
 
+    # Microsoft Teams / Slack chat bot. Requires the llm block above and a
+    # publicly reachable HTTPS host. Empty values render no env var at all.
+    # See "How to setup the Timbr Chat Bot for Microsoft Teams and Slack"
+    # in DEPLOYMENTS_OPTIONAL_SERVICES.md.
+    chatBot:
+      ENABLE_CHAT_BOT: ""                 # "true" to switch the chat bot on
+      CHAT_BOT_DEFAULT_ONTOLOGY: ""       # set exactly one of ONTOLOGY or AGENT
+      CHAT_BOT_DEFAULT_AGENT: ""
+      CHAT_BOT_DEFAULT_PARAMS: ""
+      # Microsoft Teams (Azure Bot registration)
+      CHAT_BOT_TEAMS_APP_ID: ""
+      CHAT_BOT_TEAMS_TENANT_ID: ""        # required for single-tenant bots
+      CHAT_BOT_TEAMS_APP_PASSWORD_SECRET_KEY: teamsAppPassword
+      # Slack
+      CHAT_BOT_SLACK_BOT_TOKEN_SECRET_KEY: slackBotToken
+      CHAT_BOT_SLACK_SIGNING_SECRET_SECRET_KEY: slackSigningSecret
+      # Limits and TTLs (defaults applied by timbr-api when left empty)
+      CHAT_BOT_MAX_PREVIEW_ROWS: ""             # default 50
+      CHAT_BOT_MAX_EXPORT_ROWS: ""              # default 10000
+      CHAT_BOT_RESULT_STATE_TTL_SECONDS: ""     # default 86400
+      CHAT_BOT_IDENTITY_CACHE_TTL_SECONDS: ""   # default 3600
+      CHAT_BOT_DEDUP_TTL_SECONDS: ""            # default 300
+      CHAT_BOT_INFLIGHT_TTL_SECONDS: ""         # default 120
+
+    # OAuth for the MCP server exposed at /timbr/api/mcp.
+    # Setting MCP_OAUTH_ENABLED also publishes the three .well-known discovery
+    # paths on the Ingress. AUTHORIZATION_SERVER, JWKS_URL, AUDIENCE and ISSUER
+    # are auto-derived from the JWT configuration when left empty.
+    # See "How to setup MCP OAuth authentication for timbr-api"
+    # in DEPLOYMENTS_OPTIONAL_SERVICES.md.
+    mcpOauth:
+      MCP_OAUTH_ENABLED: ""
+      MCP_OAUTH_RESOURCE_URL: ""          # e.g. https://timbr.example.com
+      MCP_OAUTH_AUTHORIZATION_SERVER: ""
+      MCP_OAUTH_JWKS_URL: ""
+      MCP_OAUTH_AUDIENCE: ""
+      MCP_OAUTH_ISSUER: ""
+      MCP_OAUTH_SCOPES: ""                # e.g. api://<resource-app-client-id>/.default
+      MCP_OAUTH_DCR_ENABLED: ""           # "true" for Copilot Studio / Claude Desktop
+      MCP_OAUTH_CLIENT_ID: ""
+      MCP_OAUTH_CLIENT_SECRET_SECRET_KEY: mcpOauthClientSecret
+
   server:
     enabled: true
     name: timbr-server
@@ -172,8 +252,8 @@ components:
       type: ClusterIP
       port: 11000
     env:
-      TIMBR_DB_JDBC_DRIVER: com.mysql.jdbc.Driver
-      TIMBR_DB_JDBC_PARAMS: useSSL=false&allowPublicKeyRetrieval=true
+      # TIMBR_DB_JDBC, TIMBR_DB_JDBC_DRIVER and TIMBR_DB_JDBC_PARAMS are derived
+      # from db.type - override with db.jdbcParams or env.extra if needed.
       TIMBR_CONNECTION_WORKER_THREADS: "100"
       TIMBR_OPERATION_WORKER_THREADS: "50"
       extra: {}
@@ -187,8 +267,6 @@ components:
       type: ClusterIP
       port: 12000
     env:
-      TIMBR_DB_JDBC_DRIVER: com.mysql.jdbc.Driver
-      TIMBR_DB_JDBC_PARAMS: useSSL=false&allowPublicKeyRetrieval=true
       TIMBR_PUBLIC_HOSTNAME: timbr-server
       extra: {}
 
@@ -201,8 +279,6 @@ components:
       type: ClusterIP
       port: 12000
     env:
-      TIMBR_DB_JDBC_DRIVER: com.mysql.jdbc.Driver
-      TIMBR_DB_JDBC_PARAMS: useSSL=false&allowPublicKeyRetrieval=true
       PYTHONUNBUFFERED: "1"
       extra: {}
 
@@ -243,6 +319,4 @@ components:
       size: 50Gi
       storageClassName: ""  # Auto-detected based on cloudProvider
     env:
-      TIMBR_DB_JDBC_DRIVER: com.mysql.jdbc.Driver
-      TIMBR_DB_JDBC_PARAMS: useSSL=false
       extra: {}

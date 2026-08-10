@@ -1,0 +1,92 @@
+{{- if and .Values.postgres.enabled (eq .Values.db.type "postgres") }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.postgres.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  type: {{ .Values.postgres.service.type }}
+  ports:
+    - port: {{ .Values.postgres.service.port }}
+      targetPort: 5432
+      protocol: TCP
+      name: postgres
+  selector:
+    app.kubernetes.io/component: postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.postgres.name }}
+  namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
+  labels:
+{{ include "timbr.labels" . | indent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: {{ .Values.postgres.name }}
+  replicas: {{ .Values.postgres.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: postgres
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+{{ include "timbr.labels" . | indent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+{{ include "timbr.imagePullSecrets" . | indent 6 }}
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: timbr-postgres
+          image: {{ .Values.postgres.image | quote }}
+          imagePullPolicy: Always
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: DB_CONNECTION
+              value: {{ include "timbr.db.connection" . | quote }}
+            - name: DB_HOST
+              value: "localhost"
+            - name: DB_PORT
+              value: {{ include "timbr.db.port" . | quote }}
+            - name: POSTGRES_DB_NAME
+              value: {{ .Values.db.database | quote }}
+            - name: POSTGRES_SCHEMA_NAME
+              value: {{ .Values.db.schema | quote }}
+            - name: POSTGRES_DB_USER
+              value: {{ include "timbr.db.user" . | quote }}
+            - name: POSTGRES_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" . }}
+                  key: {{ include "timbr.db.passwordSecretKey" . | quote }}
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              memory: 500Mi
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data/
+              name: postgresdata
+              subPath: postgres
+  volumeClaimTemplates:
+    - metadata:
+        name: postgresdata
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- $storageClass := include "timbr.storageClass" (dict "root" . "storageClassName" .Values.postgres.persistence.storageClassName) }}
+        {{- if $storageClass }}
+        storageClassName: {{ $storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgres.persistence.size | quote }}
+{{- end }}

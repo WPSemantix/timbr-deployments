@@ -1,0 +1,19 @@
+services:
+  timbr-virtualization:
+    image: timbr.azurecr.io/timbr-virtualization-v2:latest
+    container_name: timbr-virtualization
+    environment:
+      - TIMBR_DB_JDBC=jdbc:postgresql://timbr-db:5432/timbr?currentSchema=timbr_metastore
+      - TIMBR_DB_JDBC_DRIVER=org.postgresql.Driver
+      - TIMBR_DB_USER=postgres
+      - TIMBR_DB_PASSWORD=db_pass
+    restart: always
+    networks:
+      - timbr-net
+    depends_on:
+      - timbr-db
+    volumes:
+      - virtualization-volume:/data/
+
+volumes:
+  virtualization-volume:

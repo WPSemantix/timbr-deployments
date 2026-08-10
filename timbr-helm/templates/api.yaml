@@ -49,6 +49,29 @@ spec:
           env:
             - name: THRIFT_HOST
               value: {{ .Values.components.server.name | quote }}
+            {{- if include "timbr.db.isPostgres" . }}
+            - name: IS_POSTGRES_DB
+              value: "true"
+            - name: DB_CONNECTION
+              value: {{ include "timbr.db.connection" . | quote }}
+            - name: DB_HOST
+              value: {{ include "timbr.db.host" . | quote }}
+            - name: DB_PORT
+              value: {{ include "timbr.db.port" . | quote }}
+            - name: DB_DATABASE
+              value: {{ include "timbr.db.platformDbName" . | quote }}
+            - name: DB_USERNAME
+              value: {{ include "timbr.db.user" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" . }}
+                  key: {{ include "timbr.db.passwordSecretKey" . | quote }}
+            - name: POSTGRES_SCHEMA_NAME
+              value: {{ .Values.db.schema | quote }}
+            - name: TIMBR_SERVER_SCHEMA
+              value: {{ .Values.db.serverSchema | quote }}
+            {{- end }}
             {{- range $k, $v := .Values.components.api.env }}
             {{- if and (ne $k "extra") (ne $v nil) }}
             - name: {{ $k }}
@@ -85,6 +108,126 @@ spec:
                 secretKeyRef:
                   name: {{ include "timbr.secretName" $ }}
                   key: {{ .TIMBR_LLM_APIKEY_SECRET_KEY | quote }}
+            {{- end }}
+            {{- end }}
+
+            {{- /* Optional Microsoft Teams / Slack chat bot env */}}
+            {{- with .Values.components.api.chatBot }}
+            {{- if .ENABLE_CHAT_BOT }}
+            - name: ENABLE_CHAT_BOT
+              value: {{ .ENABLE_CHAT_BOT | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_DEFAULT_ONTOLOGY }}
+            - name: CHAT_BOT_DEFAULT_ONTOLOGY
+              value: {{ .CHAT_BOT_DEFAULT_ONTOLOGY | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_DEFAULT_AGENT }}
+            - name: CHAT_BOT_DEFAULT_AGENT
+              value: {{ .CHAT_BOT_DEFAULT_AGENT | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_DEFAULT_PARAMS }}
+            - name: CHAT_BOT_DEFAULT_PARAMS
+              value: {{ .CHAT_BOT_DEFAULT_PARAMS | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_TEAMS_APP_ID }}
+            - name: CHAT_BOT_TEAMS_APP_ID
+              value: {{ .CHAT_BOT_TEAMS_APP_ID | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_TEAMS_TENANT_ID }}
+            - name: CHAT_BOT_TEAMS_TENANT_ID
+              value: {{ .CHAT_BOT_TEAMS_TENANT_ID | quote }}
+            {{- end }}
+            {{- if and .ENABLE_CHAT_BOT .CHAT_BOT_TEAMS_APP_PASSWORD_SECRET_KEY }}
+            - name: CHAT_BOT_TEAMS_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" $ }}
+                  key: {{ .CHAT_BOT_TEAMS_APP_PASSWORD_SECRET_KEY | quote }}
+            {{- end }}
+            {{- if and .ENABLE_CHAT_BOT .CHAT_BOT_SLACK_BOT_TOKEN_SECRET_KEY }}
+            - name: CHAT_BOT_SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" $ }}
+                  key: {{ .CHAT_BOT_SLACK_BOT_TOKEN_SECRET_KEY | quote }}
+            {{- end }}
+            {{- if and .ENABLE_CHAT_BOT .CHAT_BOT_SLACK_SIGNING_SECRET_SECRET_KEY }}
+            - name: CHAT_BOT_SLACK_SIGNING_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" $ }}
+                  key: {{ .CHAT_BOT_SLACK_SIGNING_SECRET_SECRET_KEY | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_MAX_PREVIEW_ROWS }}
+            - name: CHAT_BOT_MAX_PREVIEW_ROWS
+              value: {{ .CHAT_BOT_MAX_PREVIEW_ROWS | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_MAX_EXPORT_ROWS }}
+            - name: CHAT_BOT_MAX_EXPORT_ROWS
+              value: {{ .CHAT_BOT_MAX_EXPORT_ROWS | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_RESULT_STATE_TTL_SECONDS }}
+            - name: CHAT_BOT_RESULT_STATE_TTL_SECONDS
+              value: {{ .CHAT_BOT_RESULT_STATE_TTL_SECONDS | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_IDENTITY_CACHE_TTL_SECONDS }}
+            - name: CHAT_BOT_IDENTITY_CACHE_TTL_SECONDS
+              value: {{ .CHAT_BOT_IDENTITY_CACHE_TTL_SECONDS | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_DEDUP_TTL_SECONDS }}
+            - name: CHAT_BOT_DEDUP_TTL_SECONDS
+              value: {{ .CHAT_BOT_DEDUP_TTL_SECONDS | quote }}
+            {{- end }}
+            {{- if .CHAT_BOT_INFLIGHT_TTL_SECONDS }}
+            - name: CHAT_BOT_INFLIGHT_TTL_SECONDS
+              value: {{ .CHAT_BOT_INFLIGHT_TTL_SECONDS | quote }}
+            {{- end }}
+            {{- end }}
+
+            {{- /* Optional MCP OAuth env */}}
+            {{- with .Values.components.api.mcpOauth }}
+            {{- if .MCP_OAUTH_ENABLED }}
+            - name: MCP_OAUTH_ENABLED
+              value: {{ .MCP_OAUTH_ENABLED | quote }}
+            {{- end }}
+            {{- if .MCP_OAUTH_RESOURCE_URL }}
+            - name: MCP_OAUTH_RESOURCE_URL
+              value: {{ .MCP_OAUTH_RESOURCE_URL | quote }}
+            {{- end }}
+            {{- if .MCP_OAUTH_AUTHORIZATION_SERVER }}
+            - name: MCP_OAUTH_AUTHORIZATION_SERVER
+              value: {{ .MCP_OAUTH_AUTHORIZATION_SERVER | quote }}
+            {{- end }}
+            {{- if .MCP_OAUTH_JWKS_URL }}
+            - name: MCP_OAUTH_JWKS_URL
+              value: {{ .MCP_OAUTH_JWKS_URL | quote }}
+            {{- end }}
+            {{- if .MCP_OAUTH_AUDIENCE }}
+            - name: MCP_OAUTH_AUDIENCE
+              value: {{ .MCP_OAUTH_AUDIENCE | quote }}
+            {{- end }}
+            {{- if .MCP_OAUTH_ISSUER }}
+            - name: MCP_OAUTH_ISSUER
+              value: {{ .MCP_OAUTH_ISSUER | quote }}
+            {{- end }}
+            {{- if .MCP_OAUTH_SCOPES }}
+            - name: MCP_OAUTH_SCOPES
+              value: {{ .MCP_OAUTH_SCOPES | quote }}
+            {{- end }}
+            {{- if .MCP_OAUTH_DCR_ENABLED }}
+            - name: MCP_OAUTH_DCR_ENABLED
+              value: {{ .MCP_OAUTH_DCR_ENABLED | quote }}
+            {{- end }}
+            {{- if .MCP_OAUTH_CLIENT_ID }}
+            - name: MCP_OAUTH_CLIENT_ID
+              value: {{ .MCP_OAUTH_CLIENT_ID | quote }}
+            {{- end }}
+            {{- if and .MCP_OAUTH_DCR_ENABLED .MCP_OAUTH_CLIENT_SECRET_SECRET_KEY }}
+            - name: MCP_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "timbr.secretName" $ }}
+                  key: {{ .MCP_OAUTH_CLIENT_SECRET_SECRET_KEY | quote }}
             {{- end }}
             {{- end }}
 {{- end }}

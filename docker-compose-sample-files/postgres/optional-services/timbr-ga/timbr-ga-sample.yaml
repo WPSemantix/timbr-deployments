@@ -1,0 +1,15 @@
+services:
+  timbr-ga:
+    image: timbr.azurecr.io/timbr-ga:latest
+    container_name: timbr-ga
+    environment:
+      - TIMBR_DB_JDBC=jdbc:postgresql://timbr-db:5432/timbr
+      - TIMBR_DB_JDBC_DRIVER=org.postgresql.Driver
+      - TIMBR_DB_USER=postgres
+      - TIMBR_DB_PASSWORD=db_pass
+      - TIMBR_DB_NAME=timbr_server
+      - THRIFT_HOST=timbr-server
+    networks:
+      - timbr-net
+    depends_on:
+      - timbr-db

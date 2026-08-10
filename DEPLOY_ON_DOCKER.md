@@ -37,6 +37,8 @@ These essential services are required for every Timbr deployment.
 ### 2.1 timbr-db
 Holds your Timbr database, storing all system data.
 
+> **Note:** To use **PostgreSQL 17** instead of MySQL, follow [Deploy Timbr with PostgreSQL 17](./DEPLOY_WITH_POSTGRES.md). It provides a complete PostgreSQL Compose stack, and the ready-made files live in [`docker-compose-sample-files/postgres/`](docker-compose-sample-files/postgres).
+
 ```yaml
 services:
   timbr-db:
@@ -312,6 +314,30 @@ http {
       proxy_pass $upstream_proxy$request_uri;
       proxy_set_header Host $host;
       proxy_set_header User-Agent: $http_user_agent;
+    }
+
+    # Required only when MCP OAuth is enabled on timbr-api.
+    # Without these the .well-known paths match "/" and reach timbr-platform.
+    location /.well-known/oauth-protected-resource {
+      set $upstream_proxy http://timbr-api:9000;
+      proxy_pass $upstream_proxy$request_uri;
+      proxy_set_header Host $host;
+      proxy_set_header User-Agent: $http_user_agent;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /.well-known/oauth-authorization-server {
+      set $upstream_proxy http://timbr-api:9000;
+      proxy_pass $upstream_proxy$request_uri;
+      proxy_set_header Host $host;
+      proxy_set_header User-Agent: $http_user_agent;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /.well-known/openid-configuration {
+      set $upstream_proxy http://timbr-api:9000;
+      proxy_pass $upstream_proxy$request_uri;
+      proxy_set_header Host $host;
+      proxy_set_header User-Agent: $http_user_agent;
+      proxy_set_header X-Forwarded-Proto $scheme;
     }
   }
 }

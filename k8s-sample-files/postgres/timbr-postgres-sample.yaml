@@ -1,0 +1,94 @@
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: timbr-postgres
+  namespace: default
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: timbr-postgres
+  serviceName: timbr-postgres
+  template:
+    metadata:
+      labels:
+        app: timbr-postgres
+    spec:
+      containers:
+        - name: timbr-postgres
+          image: timbr.azurecr.io/timbr-postgres:latest
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          env:
+            - name: DB_CONNECTION
+              value: postgresql+psycopg2
+            - name: DB_HOST
+              value: localhost
+            - name: DB_PORT
+              value: '5432'
+            - name: POSTGRES_DB_NAME
+              value: timbr
+            - name: POSTGRES_SCHEMA_NAME
+              value: timbr_platform
+            - name: POSTGRES_DB_USER
+              value: postgres
+            - name: POSTGRES_DB_PASSWORD
+              value: db_pass
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              memory: 500Mi
+          volumeMounts:
+            - name: postgresdata
+              mountPath: /var/lib/postgresql/data/
+              subPath: postgres
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: Always
+      imagePullSecrets:
+        - name: timbr-registry-cred
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 10
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  volumeClaimTemplates:
+    - kind: PersistentVolumeClaim
+      apiVersion: v1
+      metadata:
+        name: postgresdata
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 30Gi
+        volumeMode: Filesystem
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: timbr-postgres
+  namespace: default
+spec:
+  ports:
+    - name: timbr-postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+  selector:
+    app: timbr-postgres
+  type: ClusterIP
+  sessionAffinity: None
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  internalTrafficPolicy: Cluster

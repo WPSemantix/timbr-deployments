@@ -50,14 +50,20 @@ spec:
               name: http
           env:
             - name: TIMBR_DB_JDBC
-              value: {{ printf "jdbc:mysql://%s:%v/timbr_metastore?%s" .Values.db.host .Values.db.port .Values.components.virtualization.env.TIMBR_DB_JDBC_PARAMS | quote }}
+              value: {{ include "timbr.db.metastoreJdbcUrl" . | quote }}
+            - name: TIMBR_DB_JDBC_DRIVER
+              value: {{ include "timbr.db.jdbcDriver" . | quote }}
+            {{- with include "timbr.db.jdbcParams" . }}
+            - name: TIMBR_DB_JDBC_PARAMS
+              value: {{ . | quote }}
+            {{- end }}
             - name: TIMBR_DB_USER
-              value: {{ .Values.db.user | quote }}
+              value: {{ include "timbr.db.user" . | quote }}
             - name: TIMBR_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "timbr.secretName" . }}
-                  key: {{ .Values.db.rootPasswordSecretKey | quote }}
+                  key: {{ include "timbr.db.passwordSecretKey" . | quote }}
             {{- range $k, $v := .Values.components.virtualization.env }}
             {{- if and (ne $k "extra") (ne $v nil) }}
             - name: {{ $k }}

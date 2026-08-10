@@ -65,6 +65,31 @@ spec:
                 name: {{ .Values.components.mdx.name | quote }}
                 port:
                   number: {{ .Values.components.mdx.service.port }}
+          {{- /* MCP OAuth discovery endpoints. Without these the .well-known
+                 paths fall through to the "/" rule and hit timbr-platform. */}}
+          {{- if .Values.components.api.mcpOauth.MCP_OAUTH_ENABLED }}
+          - path: /.well-known/oauth-protected-resource
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.api.name | quote }}
+                port:
+                  number: {{ .Values.components.api.service.port }}
+          - path: /.well-known/oauth-authorization-server
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.api.name | quote }}
+                port:
+                  number: {{ .Values.components.api.service.port }}
+          - path: /.well-known/openid-configuration
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.components.api.name | quote }}
+                port:
+                  number: {{ .Values.components.api.service.port }}
+          {{- end }}
 
 {{- if and .Values.ingress.tls.enabled (or (eq .Values.ingress.tls.source "secret") (eq .Values.cloudProvider.type "generic")) .Values.ingress.tls.secretName }}
   tls:

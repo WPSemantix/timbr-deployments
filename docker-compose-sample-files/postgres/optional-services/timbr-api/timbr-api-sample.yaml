@@ -1,0 +1,20 @@
+services:
+  timbr-api:
+    image: timbr.azurecr.io/timbr-api:latest
+    container_name: timbr-api
+    environment:
+      - THRIFT_HOST=timbr-server
+      - IS_POSTGRES_DB=true
+      - DB_CONNECTION=postgresql+psycopg2
+      - DB_HOST=timbr-db
+      - DB_PORT=5432
+      - DB_DATABASE=timbr
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=db_pass
+      - POSTGRES_SCHEMA_NAME=timbr_platform
+      - TIMBR_SERVER_SCHEMA=timbr_server
+    ports:
+      - "9000:9000"
+    networks:
+      - timbr-net
+    restart: always

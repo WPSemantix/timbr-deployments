@@ -5,7 +5,7 @@
 # Timbr Deployments Overview - Quick Start Guide
 
 This guide will help you install and deploy our powerful semantic data platform.
-For additional deployment configurations, please see the options presented in [Optional Services for Deployment with Timbr](./DEPLOYMENTS_OPTIONAL_SERVICS.md).
+For additional deployment configurations, please see the options presented in [Optional Services for Deployment with Timbr](./DEPLOYMENTS_OPTIONAL_SERVICES.md).
 
 ---
 
@@ -21,8 +21,11 @@ Timbr can be deployed in two ways:
 - **Kubernetes (K8S):**  
   Designed for larger-scale or cloud deployments. This method involves more management but is ideal if you're operating at scale.
   - If you are planning to deploy using Kubernetes, check out the [Deploy Timbr with Kubernetes](./DEPLOY_ON_K8S.md) guide.
+  - For production and multi-cloud deployments you can also use the [Timbr Helm chart](./timbr-helm/README.md).
 
 > **For most users who aren’t highly technical, we recommend starting with Docker Compose.**
+
+Both guides above use **MySQL** as Timbr's metadata database. If you would rather use **PostgreSQL 17**, see [Deploy Timbr with PostgreSQL 17](./DEPLOY_WITH_POSTGRES.md), which covers all three deployment methods.
 
 ---
 
@@ -30,8 +33,10 @@ Timbr can be deployed in two ways:
 
 Timbr consists of several components. Some are essential, while others add extra features:
 
-- **timbr-mysql (Mandatory):**  
+- **timbr-mysql** *or* **timbr-postgres (Mandatory — choose one):**  
   The main database that stores Timbr’s internal information. You can run this as a small container or have it managed externally (such as in a cloud service).
+  - **timbr-mysql** is the default and is used throughout the Docker and Kubernetes guides.
+  - **timbr-postgres** runs PostgreSQL 17 instead. See [Deploy Timbr with PostgreSQL 17](./DEPLOY_WITH_POSTGRES.md).
 
 - **timbr-server (Mandatory):**  
   The core engine of Timbr that processes data queries and handles your requests.
@@ -49,7 +54,7 @@ Timbr consists of several components. Some are essential, while others add extra
   - **timbr-api:** Provides an API interface for custom integrations or to separate the UI from backend services.
 
 > **Note:** For most installations, only the three mandatory services are needed:
-> - **timbr-mysql** (Database)  
+> - **timbr-mysql** or **timbr-postgres** (Database)  
 > - **timbr-server** (Core Engine)  
 > - **timbr-platform** (User Interface)
 
@@ -112,10 +117,10 @@ These variables configure core system settings such as database connectivity and
 
 | Environment Variable                    | Type      | Default Value                        | Description                                                                                                   |
 |-----------------------------------------|:---------:|:------------------------------------:|---------------------------------------------------------------------------------------------------------------|
-| **TIMBR_DB_JDBC**                       | String    | `"jdbc:mysql://localhost:3306"`      | URL for connecting to the MySQL database.                                                                   |
-| **TIMBR_DB_JDBC_DRIVER**                | String    | `"com.mysql.jdbc.Driver"`            | Specifies the JDBC driver used to connect to the MySQL database.                                              |
-| **TIMBR_DB_JDBC_PARAMS**                | String    | `"useSSL=false"`                     | Additional parameters for the connection (e.g., disabling SSL).                                               |
-| **TIMBR_DB_NAME**                       | String    | `"timbr_server"`                     | Name of the database used by the Timbr server.                                                                |
+| **TIMBR_DB_JDBC**                       | String    | `"jdbc:mysql://localhost:3306"`      | URL for connecting to the metadata database. For PostgreSQL, include the database name in the path: `"jdbc:postgresql://timbr-postgres:5432/timbr"`. |
+| **TIMBR_DB_JDBC_DRIVER**                | String    | `"com.mysql.jdbc.Driver"`            | Specifies the JDBC driver used to connect to the metadata database. Use `"org.postgresql.Driver"` for PostgreSQL. |
+| **TIMBR_DB_JDBC_PARAMS**                | String    | `"useSSL=false"`                     | Additional parameters for the connection (e.g., disabling SSL). **MySQL only — omit this variable when using PostgreSQL.** |
+| **TIMBR_DB_NAME**                       | String    | `"timbr_server"`                     | Name of the database used by the Timbr server. Under PostgreSQL this names a **schema** inside the `timbr` database. |
 | **TIMBR_DB_USER**                       | String    | `"db_user"`                             | Username for accessing the database.                                                                        |
 | **TIMBR_DB_PASSWORD**                   | String    | `null`                               | Password for the database connection (set this in your secure environment).                                   |
 | **TIMBR_PUBLIC_HOSTNAME**               | String    | `"timbr-server"`                     | Hostname used to access the Timbr server from outside.                                                        |
@@ -153,13 +158,15 @@ These variables configure the front-end platform that provides the user interfac
 
 | Environment Variable           | Required | Default Value | Description                                                                                                                     |
 |--------------------------------|:--------:|:-------------:|---------------------------------------------------------------------------------------------------------------------------------|
-| **DB_CONNECTION**              | Yes      | `mysql`       | Type of database used by the Timbr platform. Options include **mysql**, **postgresql**, and **mssql**.                         |
-| **DB_DATABASE**                | Yes      | `timbr_platform`    | Name of the database for storing Timbr platform data.                                                                         |
+| **DB_CONNECTION**              | Yes      | `mysql`       | Type of database used by the Timbr platform. Options include **mysql**, **postgresql+psycopg2**, and **mssql**.                |
+| **DB_DATABASE**                | Yes      | `timbr_platform`    | Name of the database for storing Timbr platform data. Under PostgreSQL this is the single shared database, `timbr`.     |
 | **DB_HOST**                    | Yes      | `localhost`   | Hostname or IP address of the database server.                                                                                |
-| **DB_PORT**                    | Yes      | (none)        | Port number on which the database service is running.                                                                         |
+| **DB_PORT**                    | Yes      | (none)        | Port number on which the database service is running. `3306` for MySQL, `5432` for PostgreSQL.                                |
 | **DB_USERNAME**                | Yes      | (none)        | Username for connecting to the platform's database.                                                                           |
 | **DB_PASSWORD**                | Yes      | (none)        | Password for accessing the platform's database.                                                                               |
 | **DB_SECRET_KEY**              | Yes      | (none)        | Secret key used to secure and validate the database connection.                                                               |
+| **IS_POSTGRES_DB**             | Yes*     | `false`       | **PostgreSQL only.** Must be set to `true` when the metadata database is PostgreSQL, in addition to `DB_CONNECTION`.           |
+| **POSTGRES_SCHEMA_NAME**       | Yes*     | (none)        | **PostgreSQL only.** Schema holding the Timbr platform tables. For example: `timbr_platform`                                  |
 | **THRIFT_HOST**                | Yes      | (none)        | Timbr server database HOST. For example: `20.119.110.124`                                                                     |
 | **THRIFT_PORT**                | Yes      | (none)        | Timbr server database PORT. For example: `11000`                                                                              |
 | **TIMBR_SERVER_SCHEMA**        | Yes      | (none)        | Timbr server database SCHEMA. For example: `timbr_server_db`                                                                  |
@@ -199,6 +206,9 @@ These variables configure the front-end platform that provides the user interfac
 | **TIMBR_LLM_APIKEY**                | No       | (none)        | The API key used to connect to the LLM service provider. For example: `A...Kw`                                                  |
 | **TIMBR_LLM_ENDPOINT**              | No       | (none)        | The API Endpoint for the LLM provider (Mandatory only for AzureOpenAI service). For example: `https://my-azure-foundry.url.azure.com` |
 
+\* Required only when the metadata database is PostgreSQL.
+
+> **Note on PostgreSQL:** MySQL deployments use two separate databases, `timbr_platform` and `timbr_server`. PostgreSQL deployments use a single database named `timbr` that contains both as **schemas**, which is why `POSTGRES_SCHEMA_NAME` and `TIMBR_SERVER_SCHEMA` matter there. See [Deploy Timbr with PostgreSQL 17](./DEPLOY_WITH_POSTGRES.md) for the full comparison.
 
 ---
 
